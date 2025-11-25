@@ -1,0 +1,2208 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IT Inventory Management</title>
+    
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Load Babel for JSX compilation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Load SheetJS for Excel Export (Stable Version) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <!-- Load html2pdf.js for Direct PDF Download -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <!-- Font for Khmer Language -->
+    <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Kantumruy Pro', sans-serif;
+        }
+        /* Animation utilities */
+        .animate-fadeIn {
+            animation: fadeIn 0.3s ease-out;
+        }
+        .animate-popIn {
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes popIn {
+            from { opacity: 0; transform: scale(0.95) translateY(10px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        /* Custom Scrollbar for dropdown */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 3px;
+        }
+    </style>
+    
+    <!-- Import Map for cleaner imports -->
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "lucide-react": "https://esm.sh/lucide-react@0.378.0"
+        }
+    }
+    </script>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen">
+
+    <div id="root"></div>
+
+    <!-- Main Application Script -->
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useRef } from 'react';
+        import { createRoot } from 'react-dom/client';
+        
+        // Firebase Imports from CDN
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+        import { 
+            getAuth, 
+            signInAnonymously, 
+            onAuthStateChanged 
+        } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+        import { 
+            getDatabase, 
+            ref, 
+            push, 
+            set, 
+            onValue, 
+            remove, 
+            update,
+            get
+          runTransaction // <--- បន្ថែមពាក្យនេះ
+        } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+        // Icons
+        import { 
+            LayoutDashboard, 
+            PackagePlus, 
+            PackageMinus, 
+            ClipboardList, 
+            Search, 
+            AlertTriangle, 
+            Edit, 
+            Trash2, 
+            Computer, 
+            X, 
+            Save, 
+            Check, 
+            Database, 
+            History, 
+            Calendar,
+            UserX,
+            UserCheck,
+            User,
+            CreditCard, 
+            Briefcase,
+            Users,
+            FileSpreadsheet,
+            Printer,
+            FileText,
+            Download,
+            AlertCircle,
+            Info,
+            Settings,
+            RotateCcw,
+            Clock,
+            Package,
+            ChevronRight,
+            Box,
+            FolderTree,
+            List,
+            Activity,
+            MapPin,
+            Plus,
+            Minus
+        } from 'lucide-react';
+
+        // --- 1. Inventory Realtime Database Configuration ---
+        const inventoryConfig = {
+            apiKey: "AIzaSyACtQoZQ_LOe3ijNZAWt-hcb2BF3cDBiLk",
+            authDomain: "managermenpcdi.firebaseapp.com",
+            databaseURL: "https://managermenpcdi-default-rtdb.firebaseio.com",
+            projectId: "managermenpcdi",
+            storageBucket: "managermenpcdi.firebasestorage.app",
+            messagingSenderId: "740667442678",
+            appId: "1:740667442678:web:ac672dd9ebfeaf439e33d7",
+            measurementId: "G-G818R0HG3Q"
+        };
+
+        // --- 2. User List Realtime Database Configuration (New) ---
+        const userListConfig = {
+            apiKey: "AIzaSyAc2g-t9A7du3K_nI2fJnw_OGxhmLfpP6s",
+            authDomain: "dilistname.firebaseapp.com",
+            databaseURL: "https://dilistname-default-rtdb.firebaseio.com",
+            projectId: "dilistname",
+            storageBucket: "dilistname.firebasestorage.app",
+            messagingSenderId: "897983357871",
+            appId: "1:897983357871:web:42a046bc9fb3e0543dc55a",
+            measurementId: "G-NQ798D9J6K"
+        };
+
+        // Initialize Firebase Apps
+        const app = initializeApp(inventoryConfig);
+        const auth = getAuth(app);
+        const db = getDatabase(app);
+
+        const userApp = initializeApp(userListConfig, "userApp"); 
+        const userDb = getDatabase(userApp);
+        const userAuth = getAuth(userApp); 
+        
+        // --- CONSTANTS ---
+        const LOCATION_OPTIONS = [
+            ...Array.from({ length: 12 }, (_, i) => ({
+                label: `ទូទី${i + 1}`,
+                value: `Cabinet ${i + 1}`
+            })),
+            { label: 'ឃ្លាំងអគារ A', value: 'Warehouse A' },
+            { label: 'ឃ្លាំងអគារ B', value: 'Warehouse B' }
+        ];
+
+        const SIXTY_DAYS_MS = 60 * 24 * 60 * 60 * 1000;
+
+        // Helper to get label from value
+        const getLocationLabel = (value) => {
+            if (!value) return 'មិនមានទីតាំង';
+            const option = LOCATION_OPTIONS.find(opt => opt.value === value);
+            return option ? option.label : value;
+        };
+
+        // --- Helper Components ---
+        const Button = ({ children, onClick, variant = 'primary', className = '', type = 'button', disabled = false }) => {
+            const base = "px-4 py-2.5 rounded-xl font-medium transition-all duration-200 flex items-center justify-center gap-2 active:scale-95 shadow-sm";
+            const variants = {
+                primary: "bg-blue-600 text-white hover:bg-blue-700 hover:shadow-blue-200 hover:shadow-lg disabled:bg-blue-300",
+                secondary: "bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900",
+                danger: "bg-red-50 text-red-600 hover:bg-red-100",
+                "danger-solid": "bg-red-600 text-white hover:bg-red-700 shadow-md shadow-red-200 hover:shadow-lg hover:shadow-red-300",
+                success: "bg-green-600 text-white hover:bg-green-700 shadow-green-200 hover:shadow-lg",
+                purple: "bg-purple-600 text-white hover:bg-purple-700 shadow-purple-200 hover:shadow-lg",
+                outline: "border border-gray-300 text-gray-700 hover:bg-gray-50"
+            };
+            return (
+                <button 
+                type={type} 
+                onClick={onClick} 
+                disabled={disabled}
+                className={`${base} ${variants[variant]} ${className}`}
+                >
+                {children}
+                </button>
+            );
+        };
+
+        const Input = ({ label, value, onChange, type = "text", placeholder, required = false, disabled = false }) => (
+            <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+                <input
+                type={type}
+                value={value}
+                onChange={onChange}
+                required={required}
+                disabled={disabled}
+                placeholder={placeholder}
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors disabled:bg-gray-100"
+                />
+            </div>
+        );
+
+        const Select = ({ label, value, onChange, options, required = false }) => (
+            <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+                <select
+                value={value}
+                onChange={onChange}
+                required={required}
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
+                >
+                <option value="">-- សូមជ្រើសរើស --</option>
+                {options.map((opt, idx) => (
+                    <option key={idx} value={opt.value}>{opt.label}</option>
+                ))}
+                </select>
+            </div>
+        );
+
+        // --- Beautiful Confirmation Modal ---
+        const ConfirmationModal = ({ isOpen, title, message, onConfirm, onCancel, type = 'danger' }) => {
+            if (!isOpen) return null;
+
+            const iconColor = type === 'danger' ? 'text-red-500' : 'text-amber-500';
+            const iconBg = type === 'danger' ? 'bg-red-50' : 'bg-amber-50';
+            const buttonVariant = type === 'danger' ? 'danger-solid' : 'primary';
+
+            return (
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-fadeIn">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-popIn border border-white/20 ring-1 ring-black/5">
+                        <div className="p-8 text-center">
+                            <div className={`mx-auto w-20 h-20 rounded-full flex items-center justify-center mb-6 ${iconBg} ${iconColor} shadow-inner`}>
+                                {type === 'danger' ? <Trash2 size={40} strokeWidth={1.5}/> : <Info size={40} strokeWidth={1.5}/>}
+                            </div>
+                            <h3 className="text-2xl font-bold text-gray-800 mb-3 tracking-tight">{title}</h3>
+                            <p className="text-gray-500 mb-8 text-base leading-relaxed px-2">
+                                {message}
+                            </p>
+                            <div className="flex gap-3">
+                                <Button onClick={onCancel} variant="secondary" className="flex-1 py-3 text-base">
+                                    បោះបង់
+                                </Button>
+                                <Button onClick={onConfirm} variant={buttonVariant} className="flex-1 py-3 text-base font-bold">
+                                    {type === 'danger' ? 'លុបចេញ' : 'យល់ព្រម'}
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- Main App Component ---
+        function ComputerInventoryApp() {
+            const [user, setUser] = useState(null);
+            const [authStatus, setAuthStatus] = useState('checking');
+            const [activeTab, setActiveTab] = useState('dashboard');
+            const [items, setItems] = useState([]);
+            const [requests, setRequests] = useState([]); 
+            const [totalData, setTotalData] = useState([]);
+            
+            const [loading, setLoading] = useState(true);
+            const [searchTerm, setSearchTerm] = useState('');
+            const [notification, setNotification] = useState(null);
+
+            const [confirmModal, setConfirmModal] = useState({
+                isOpen: false,
+                title: '',
+                message: '',
+                onConfirm: () => {},
+                type: 'danger'
+            });
+
+            // Authentication Setup (Primary)
+            useEffect(() => {
+                const initAuth = async () => {
+                    try {
+                        await signInAnonymously(auth);
+                        setAuthStatus('authenticated');
+                    } catch (error) {
+                        console.warn("Inventory Auth: Disabled/Not Configured. Using Public Mode.");
+                        setAuthStatus('public');
+                    }
+                };
+                initAuth();
+                
+                const unsubscribe = onAuthStateChanged(auth, (u) => {
+                    if (u) {
+                        setUser(u);
+                        setAuthStatus('authenticated');
+                    }
+                });
+                return () => unsubscribe();
+            }, []);
+
+            // Realtime Database Listeners (Inventory)
+            useEffect(() => {
+                // 1. inventory_items
+                const itemsRef = ref(db, 'inventory_items');
+                const unsubItems = onValue(itemsRef, (snapshot) => {
+                    const data = snapshot.val();
+                    const loadedItems = [];
+                    if (data) {
+                        for (const key in data) {
+                            loadedItems.push({ id: key, ...data[key] });
+                        }
+                    }
+                    setItems(loadedItems);
+                    setLoading(false);
+                }, (error) => {
+                    console.error("DB Error:", error);
+                    showNotification("បញ្ហាតភ្ជាប់ Database ស្តុក", "error");
+                    setLoading(false);
+                });
+
+                // 2. inventory_requests
+                const reqRef = ref(db, 'inventory_requests');
+                const unsubReq = onValue(reqRef, (snapshot) => {
+                    const data = snapshot.val();
+                    const loadedReqs = [];
+                    if (data) {
+                        for (const key in data) {
+                            loadedReqs.push({ id: key, ...data[key] });
+                        }
+                    }
+                    loadedReqs.sort((a, b) => new Date(b.date) - new Date(a.date));
+                    setRequests(loadedReqs);
+                });
+
+                // 3. /inventory (Total Data)
+                const totalDataRef = ref(db, 'inventory');
+                const unsubTotal = onValue(totalDataRef, (snapshot) => {
+                    const data = snapshot.val();
+                    const loadedTotal = [];
+                    if (data) {
+                        for (const key in data) {
+                            loadedTotal.push({ id: key, ...data[key] });
+                        }
+                    }
+                    // Sort by latest
+                    loadedTotal.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+                    setTotalData(loadedTotal);
+                });
+
+                return () => {
+                    unsubItems();
+                    unsubReq();
+                    unsubTotal();
+                };
+            }, []);
+
+            const showNotification = (msg, type = 'success') => {
+                setNotification({ msg, type });
+                setTimeout(() => setNotification(null), 3000);
+            };
+
+            const closeConfirmModal = () => {
+                setConfirmModal(prev => ({ ...prev, isOpen: false }));
+            };
+
+            // --- Actions ---
+            const handleAddItem = async (e, formData, resetForm) => {
+                e.preventDefault();
+                try {
+                const newItemRef = push(ref(db, 'inventory_items'));
+                await set(newItemRef, {
+                    ...formData,
+                    quantity: parseInt(formData.quantity),
+                    lastUpdated: new Date().toISOString(),
+                    createdAt: new Date().toISOString()
+                });
+                showNotification('បានបញ្ចូលសម្ភារៈថ្មីដោយជោគជ័យ!', 'success');
+                resetForm();
+                } catch (error) {
+                console.error(error);
+                showNotification('បរាជ័យក្នុងការបញ្ចូលទិន្នន័យ', 'error');
+                }
+            };
+
+            // --- UPDATED: Handle Multi-Item Stock Out with Multi-Source ---
+           // --- UPDATED: Transactional Stock Out (Multi-User Safe) ---
+            const handleStockOut = async (cartItems, requesterName, reason, resetForm) => {
+                try {
+                    const timestamp = new Date().toISOString();
+                    let successCount = 0;
+                    let failCount = 0;
+            
+                    for (const cartItem of cartItems) {
+                        const isGlobal = cartItem.source === 'inventory';
+                        const path = isGlobal ? 'inventory' : 'inventory_items';
+                        const itemRef = ref(db, `${path}/${cartItem.id}`);
+                        const qtyToDeduct = parseInt(cartItem.outQty);
+                        
+                        try {
+                            // ប្រើ Transaction ដើម្បីធានាសុវត្ថិភាពពេលដកព្រមគ្នា
+                            await runTransaction(itemRef, (currentItem) => {
+                                if (currentItem) {
+                                    if (currentItem.quantity >= qtyToDeduct) {
+                                        currentItem.quantity -= qtyToDeduct;
+                                        if (!isGlobal) {
+                                            currentItem.lastUpdated = timestamp;
+                                        } else {
+                                            currentItem.updatedAt = Date.now();
+                                            currentItem.lastUpdatedDate = new Date().toLocaleString('en-GB');
+                                        }
+                                        return currentItem; // យល់ព្រមអាប់ដេត
+                                    } else {
+                                        return; // បោះបង់ (Abort) បើស្តុកមិនគ្រប់
+                                    }
+                                }
+                                return currentItem;
+                            });
+
+                            // ប្រសិនបើ Transaction ជោគជ័យ យើងនឹងកត់ត្រាចូល History
+                            // យើងពិនិត្យមើលថាតើស្តុកពិតជាត្រូវបានកាត់ឬអត់ ដោយមើល snapshot ក្រោយ transaction
+                            // ប៉ុន្តែដើម្បីងាយស្រួល យើងសន្មត់ថាជោគជ័យប្រសិនបើមិនមាន Error
+                            
+                            const newReqRef = push(ref(db, 'inventory_requests'));
+                            await set(newReqRef, {
+                                type: 'DIRECT_OUT',
+                                itemId: cartItem.id,
+                                itemName: cartItem.name,
+                                category: cartItem.category || 'N/A',
+                                quantity: qtyToDeduct,
+                                reason: reason,
+                                requester: requesterName,
+                                date: timestamp,
+                                status: 'COMPLETED',
+                                source: path
+                            });
+                            successCount++;
+
+                        } catch (error) {
+                            console.error("Transaction failed for item:", cartItem.name, error);
+                            failCount++;
+                        }
+                    }
+
+                    if (failCount > 0) {
+                        showNotification(`បានដក ${successCount} មុខ, បរាជ័យ ${failCount} មុខ (ដោយសារស្តុកប្រែប្រួល)`, 'warning');
+                    } else {
+                        showNotification('បានដកសម្ភារៈចេញដោយជោគជ័យ!', 'success');
+                    }
+                    resetForm();
+                } catch (error) {
+                    console.error(error);
+                    showNotification('មានបញ្ហាប្រព័ន្ធ', 'error');
+                }
+            };
+
+          // --- UPDATED: Transactional Request (Multi-User Safe) ---
+            const handleRequest = async (e, formData, resetForm) => {
+                e.preventDefault();
+                const qty = parseInt(formData.quantity);
+                const itemRef = ref(db, `inventory_items/${formData.itemId}`);
+
+                try {
+                    // 1. Transactional Deduct
+                    const result = await runTransaction(itemRef, (currentItem) => {
+                        if (currentItem) {
+                            if (currentItem.quantity >= qty) {
+                                currentItem.quantity -= qty;
+                                currentItem.lastUpdated = new Date().toISOString();
+                                return currentItem;
+                            } else {
+                                return; // Abort if low stock
+                            }
+                        }
+                        return currentItem;
+                    });
+
+                    // result.committed គឺ true បើ transaction ជោគជ័យ
+                    // result.snapshot.val() គឺជាទិន្នន័យក្រោយពេល update
+                    
+                    if (result.committed) {
+                        // ស្តុកត្រូវបានកាត់ហើយ ទើបបង្កើតសំណើ
+                        const snapshot = result.snapshot.val(); // ទិន្នន័យថ្មី
+                        // ប៉ុន្តែយើងត្រូវការឈ្មោះពី item ដើម។ ក្នុង Transaction យើង update តែ quantity
+                        // ដូច្នេះយើងប្រើទិន្នន័យដែលយើងមានស្រាប់ ឬទាញពី snapshot ក៏បាន
+                        
+                        const newReqRef = push(ref(db, 'inventory_requests'));
+                        await set(newReqRef, {
+                            ...formData,
+                            itemName: snapshot.name, 
+                            category: snapshot.category,
+                            quantity: qty,
+                            type: 'REQUEST_OUT', 
+                            status: 'COMPLETED',
+                            date: new Date().toISOString()
+                        });
+                        
+                        showNotification('បានកាត់ស្តុក និងបង្កើតសំណើដោយជោគជ័យ!', 'success');
+                        resetForm();
+                    } else {
+                        showNotification('ប្រតិបត្តិការបរាជ័យ! ស្តុកអាចនឹងមិនគ្រប់គ្រាន់នៅពេលនេះ។', 'error');
+                    }
+
+                } catch (error) {
+                    console.error(error);
+                    showNotification('មានបញ្ហាក្នុងការបញ្ជូនសំណើ', 'error');
+                }
+            };
+
+            const handleDeleteItem = (id, name) => {
+                setConfirmModal({
+                    isOpen: true,
+                    title: 'បញ្ជាក់ការលុប',
+                    message: `តើអ្នកពិតជាចង់ផ្លាស់ទី "${name}" ទៅធុងសំរាមមែនទេ? អ្នកអាចស្តារវាមកវិញបានក្នុងរយៈពេល ៦០ថ្ងៃ។`,
+                    type: 'danger',
+                    onConfirm: async () => {
+                        try {
+                            // Get current Data
+                            const itemSnapshot = await get(ref(db, `inventory_items/${id}`));
+                            if(itemSnapshot.exists()) {
+                                const itemData = itemSnapshot.val();
+                                // Move to Recycle Bin
+                                await set(ref(db, `recycle_bin/items/${id}`), {
+                                    ...itemData,
+                                    deletedAt: new Date().toISOString()
+                                });
+                                // Remove from active
+                                await remove(ref(db, `inventory_items/${id}`));
+                                showNotification('បានផ្លាស់ទីទៅធុងសំរាម', 'success');
+                            }
+                        } catch (err) {
+                            console.error(err);
+                            showNotification('មានបញ្ហាក្នុងការលុប', 'error');
+                        }
+                        closeConfirmModal();
+                    }
+                });
+            };
+
+            const handleUpdateItem = async (e, editingItem, setEditingItem) => {
+                e.preventDefault();
+                try {
+                await update(ref(db, `inventory_items/${editingItem.id}`), {
+                    name: editingItem.name,
+                    category: editingItem.category,
+                    cabinetNo: editingItem.cabinetNo, 
+                    quantity: parseInt(editingItem.quantity),
+                    unit: editingItem.unit,
+                    description: editingItem.description,
+                    lastUpdated: new Date().toISOString()
+                });
+                showNotification('កែប្រែទិន្នន័យជោគជ័យ!', 'success');
+                setEditingItem(null);
+                } catch (error) {
+                console.error(error);
+                showNotification('បរាជ័យក្នុងការកែប្រែ', 'error');
+                }
+            };
+
+            const handleDeleteHistory = (historyItem) => {
+                setConfirmModal({
+                    isOpen: true,
+                    title: 'បញ្ជាក់ការលុបប្រវត្តិ',
+                    message: `លុបកំណត់ត្រានេះនឹងបង្វិលចំនួន ${historyItem.quantity} ចូលស្តុកវិញ ហើយកំណត់ត្រានឹងផ្លាស់ទីទៅធុងសំរាម។`,
+                    type: 'warning', 
+                    onConfirm: async () => {
+                        try {
+                            let inventoryItem = items.find(i => i.id === historyItem.itemId);
+                            if (!inventoryItem) {
+                                inventoryItem = items.find(i => i.name === historyItem.itemName);
+                            }
+
+                            if (inventoryItem) {
+                                await update(ref(db, `inventory_items/${inventoryItem.id}`), {
+                                quantity: parseInt(inventoryItem.quantity) + parseInt(historyItem.quantity),
+                                lastUpdated: new Date().toISOString()
+                                });
+                            }
+
+                            // Move to Recycle Bin
+                            await set(ref(db, `recycle_bin/requests/${historyItem.id}`), {
+                                ...historyItem,
+                                deletedAt: new Date().toISOString()
+                            });
+
+                            await remove(ref(db, `inventory_requests/${historyItem.id}`));
+                            showNotification('បានលុប និងបង្វិលស្តុកវិញជោគជ័យ', 'success');
+                        } catch (error) {
+                            console.error(error);
+                            showNotification('បរាជ័យក្នុងការលុបប្រវត្តិ', 'error');
+                        }
+                        closeConfirmModal();
+                    }
+                });
+            };
+
+            const handleUpdateHistory = async (e, editingHistory, setEditingHistory) => {
+                e.preventDefault();
+                const oldQty = parseInt(editingHistory.originalQuantity); 
+                const newQty = parseInt(editingHistory.quantity);
+                
+                try {
+                if (oldQty !== newQty) {
+                    const diff = newQty - oldQty; 
+                    let inventoryItem = items.find(i => i.id === editingHistory.itemId);
+                    if (!inventoryItem) inventoryItem = items.find(i => i.name === editingHistory.itemName);
+
+                    if (inventoryItem) {
+                    if (inventoryItem.quantity < diff) {
+                        alert("ស្តុកមិនគ្រប់គ្រាន់សម្រាប់ការកែប្រែចំនួននេះទេ!"); 
+                        return;
+                    }
+                    await update(ref(db, `inventory_items/${inventoryItem.id}`), {
+                        quantity: parseInt(inventoryItem.quantity) - diff,
+                        lastUpdated: new Date().toISOString()
+                    });
+                    } else {
+                        alert("រកមិនឃើញសម្ភារៈក្នុងស្តុក។ កែប្រែបានតែទិន្នន័យប្រវត្តិប៉ុណ្ណោះ។");
+                    }
+                }
+
+                await update(ref(db, `inventory_requests/${editingHistory.id}`), {
+                    quantity: newQty,
+                    reason: editingHistory.reason,
+                    requester: editingHistory.requester || '',
+                    date: editingHistory.date 
+                });
+
+                showNotification('កែប្រែប្រវត្តិជោគជ័យ!', 'success');
+                setEditingHistory(null);
+                } catch (error) {
+                console.error(error);
+                showNotification('បរាជ័យក្នុងការកែប្រែ', 'error');
+                }
+            };
+
+            // --- Settings View ---
+            const SettingsView = () => {
+                const [recycleTab, setRecycleTab] = useState('items');
+                const [deletedItems, setDeletedItems] = useState([]);
+                const [deletedRequests, setDeletedRequests] = useState([]);
+
+                // Fetch deleted data and auto-delete old data
+                useEffect(() => {
+                    const recycleRef = ref(db, 'recycle_bin');
+                    const unsub = onValue(recycleRef, (snapshot) => {
+                        const data = snapshot.val();
+                        const dItems = [];
+                        const dReqs = [];
+                        const now = Date.now();
+
+                        if (data) {
+                            // Process Items
+                            if (data.items) {
+                                for (const key in data.items) {
+                                    const item = { id: key, ...data.items[key] };
+                                    // Check 60 days
+                                    if (item.deletedAt && (now - new Date(item.deletedAt).getTime() > SIXTY_DAYS_MS)) {
+                                        remove(ref(db, `recycle_bin/items/${key}`)); // Auto delete
+                                    } else {
+                                        dItems.push(item);
+                                    }
+                                }
+                            }
+                            // Process Requests
+                            if (data.requests) {
+                                for (const key in data.requests) {
+                                    const req = { id: key, ...data.requests[key] };
+                                    // Check 60 days
+                                    if (req.deletedAt && (now - new Date(req.deletedAt).getTime() > SIXTY_DAYS_MS)) {
+                                        remove(ref(db, `recycle_bin/requests/${key}`)); // Auto delete
+                                    } else {
+                                        dReqs.push(req);
+                                    }
+                                }
+                            }
+                        }
+                        setDeletedItems(dItems);
+                        setDeletedRequests(dReqs);
+                    });
+                    return () => unsub();
+                }, []);
+
+                const handleRestoreItem = async (item) => {
+                    try {
+                        // Restore to inventory_items
+                        const { deletedAt, ...restData } = item; // Remove deletedAt
+                        await set(ref(db, `inventory_items/${item.id}`), restData);
+                        // Remove from recycle bin
+                        await remove(ref(db, `recycle_bin/items/${item.id}`));
+                        showNotification('បានស្តារសម្ភារៈឡើងវិញ', 'success');
+                    } catch (e) {
+                        console.error(e);
+                        showNotification('បរាជ័យក្នុងការស្តារ', 'error');
+                    }
+                };
+
+                const handleRestoreRequest = async (req) => {
+                    try {
+                        // Check if item exists to deduct stock again
+                        const itemSnapshot = await get(ref(db, `inventory_items/${req.itemId}`));
+                        if (itemSnapshot.exists()) {
+                            const currentItem = itemSnapshot.val();
+                            if (currentItem.quantity >= req.quantity) {
+                                // Re-deduct stock
+                                await update(ref(db, `inventory_items/${req.itemId}`), {
+                                    quantity: currentItem.quantity - req.quantity,
+                                    lastUpdated: new Date().toISOString()
+                                });
+                                // Restore Request
+                                const { deletedAt, ...restData } = req;
+                                await set(ref(db, `inventory_requests/${req.id}`), restData);
+                                // Remove from recycle bin
+                                await remove(ref(db, `recycle_bin/requests/${req.id}`));
+                                showNotification('បានស្តារសំណើ និងកាត់ស្តុកវិញជោគជ័យ', 'success');
+                            } else {
+                                alert(`ស្តុកបច្ចុប្បន្ន (${currentItem.quantity}) មិនគ្រប់គ្រាន់ដើម្បីកាត់សម្រាប់សំណើនេះ (${req.quantity}) ទេ!`);
+                            }
+                        } else {
+                            alert("រកមិនឃើញសម្ភារៈដើមក្នុងស្តុកទេ។ មិនអាចស្តារសំណើបានទេ។");
+                        }
+                    } catch (e) {
+                        console.error(e);
+                        showNotification('បរាជ័យក្នុងការស្តារ', 'error');
+                    }
+                };
+
+                const handlePermanentDelete = (path, id) => {
+                    setConfirmModal({
+                        isOpen: true,
+                        title: 'លុបជាអចិន្ត្រៃយ៍',
+                        message: 'តើអ្នកពិតជាចង់លុបទិន្នន័យនេះជាអចិន្ត្រៃយ៍មែនទេ? សកម្មភាពនេះមិនអាចត្រឡប់វិញបានទេ។',
+                        type: 'danger',
+                        onConfirm: async () => {
+                            try {
+                                await remove(ref(db, `${path}/${id}`));
+                                showNotification('បានលុបជាអចិន្ត្រៃយ៍', 'success');
+                            } catch (e) {
+                                console.error(e);
+                                showNotification('មានបញ្ហា', 'error');
+                            }
+                            closeConfirmModal();
+                        }
+                    });
+                };
+
+                return (
+                    <div className="animate-fadeIn pb-20">
+                        <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <Settings size={24} className="text-gray-700"/>
+                            ការកំណត់ និង ធុងសំរាម
+                        </h2>
+
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6 flex gap-3 items-start">
+                            <Clock className="text-yellow-600 flex-shrink-0 mt-1" size={20} />
+                            <div>
+                                <h4 className="font-bold text-yellow-800 text-sm">ការលុបដោយស្វ័យប្រវត្តិ</h4>
+                                <p className="text-xs text-yellow-700 mt-1">
+                                    ទិន្នន័យទាំងអស់នៅក្នុងធុងសំរាម នឹងត្រូវលុបជាអចិន្ត្រៃយ៍ដោយស្វ័យប្រវត្តិបន្ទាប់ពី <b>៦០ថ្ងៃ</b>។
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex p-1 bg-gray-100 rounded-lg mb-4">
+                            <button 
+                                onClick={() => setRecycleTab('items')}
+                                className={`flex-1 py-2 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-2 ${recycleTab === 'items' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}
+                            >
+                                <PackageMinus size={16}/> សម្ភារៈ ({deletedItems.length})
+                            </button>
+                            <button 
+                                onClick={() => setRecycleTab('requests')}
+                                className={`flex-1 py-2 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-2 ${recycleTab === 'requests' ? 'bg-white text-purple-600 shadow-sm' : 'text-gray-500'}`}
+                            >
+                                <ClipboardList size={16}/> ប្រវត្តិ ({deletedRequests.length})
+                            </button>
+                        </div>
+
+                        <div className="space-y-3">
+                            {recycleTab === 'items' && deletedItems.map(item => (
+                                <div key={item.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex justify-between items-center">
+                                    <div>
+                                        <h3 className="font-bold text-gray-800">{item.name}</h3>
+                                        <p className="text-xs text-gray-500">{item.category} • លុបនៅ: {new Date(item.deletedAt).toLocaleDateString('km-KH')}</p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button 
+                                            onClick={() => handleRestoreItem(item)}
+                                            className="bg-green-50 text-green-600 p-2 rounded-lg hover:bg-green-100"
+                                            title="ស្តារឡើងវិញ"
+                                        >
+                                            <RotateCcw size={18}/>
+                                        </button>
+                                        <button 
+                                            onClick={() => handlePermanentDelete('recycle_bin/items', item.id)}
+                                            className="bg-red-50 text-red-600 p-2 rounded-lg hover:bg-red-100"
+                                            title="លុបជាអចិន្ត្រៃយ៍"
+                                        >
+                                            <Trash2 size={18}/>
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+
+                            {recycleTab === 'requests' && deletedRequests.map(req => (
+                                <div key={req.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex justify-between items-center">
+                                    <div>
+                                        <h3 className="font-bold text-gray-800">{req.itemName}</h3>
+                                        <p className="text-xs text-gray-500">
+                                            {req.type === 'REQUEST_OUT' ? 'សំណើ' : 'ដកចេញ'} • ចំនួន: {req.quantity} • {new Date(req.deletedAt).toLocaleDateString('km-KH')}
+                                        </p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button 
+                                            onClick={() => handleRestoreRequest(req)}
+                                            className="bg-green-50 text-green-600 p-2 rounded-lg hover:bg-green-100"
+                                            title="ស្តារឡើងវិញ"
+                                        >
+                                            <RotateCcw size={18}/>
+                                        </button>
+                                        <button 
+                                            onClick={() => handlePermanentDelete('recycle_bin/requests', req.id)}
+                                            className="bg-red-50 text-red-600 p-2 rounded-lg hover:bg-red-100"
+                                            title="លុបជាអចិន្ត្រៃយ៍"
+                                        >
+                                            <Trash2 size={18}/>
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+
+                            {((recycleTab === 'items' && deletedItems.length === 0) || (recycleTab === 'requests' && deletedRequests.length === 0)) && (
+                                <div className="text-center py-10 text-gray-400">
+                                    <Trash2 size={40} className="mx-auto mb-2 opacity-20"/>
+                                    <p>គ្មានទិន្នន័យក្នុងធុងសំរាម</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            };
+
+            // --- Total Data View (From /inventory path) ---
+            const TotalDataView = () => {
+                return (
+                    <div className="animate-fadeIn pb-20">
+                        <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <List size={24} className="text-blue-600"/>
+                            ទិន្នន័យសរុប (ពី /inventory)
+                        </h2>
+                        
+                        <div className="space-y-3">
+                            {totalData.map(data => (
+                                <div key={data.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <h3 className="font-bold text-gray-800 text-lg">{data.type || 'N/A'}</h3>
+                                            <p className="text-xs text-gray-500 mt-1">
+                                                បង្កើតដោយ: {data.createdBy || 'N/A'} <br/>
+                                                កាលបរិច្ឆេទ: {data.lastUpdatedDate || 'N/A'}
+                                            </p>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="bg-blue-50 text-blue-700 px-3 py-1 rounded-lg font-bold text-sm inline-block">
+                                                {data.quantity || 0}
+                                            </div>
+                                            <div className={`mt-2 text-xs font-medium px-2 py-0.5 rounded ${data.status === 'កំពុងប្រើប្រាស់' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                                                {data.status || 'N/A'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+
+                            {totalData.length === 0 && (
+                                <div className="text-center py-20 text-gray-400 flex flex-col items-center">
+                                    <Activity size={48} strokeWidth={1} className="mb-4 opacity-50"/>
+                                    <p>មិនមានទិន្នន័យក្នុង /inventory</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            };
+
+            // --- Sub-Components ---
+            const DashboardView = () => {
+                const totalItems = items.length;
+                const lowStockItems = items.filter(i => i.quantity < 5);
+                const totalRequests = requests.filter(r => r.type === 'REQUEST_OUT').length;
+
+                return (
+                <div className="space-y-4 animate-fadeIn">
+                    <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    <Database size={20} className="text-green-600"/>
+                    ផ្ទាំងគ្រប់គ្រង (Realtime DB)
+                    </h2>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-blue-600 text-white p-4 rounded-xl shadow-sm">
+                        <div className="text-3xl font-bold">{totalItems}</div>
+                        <div className="text-sm opacity-90">មុខទំនិញសរុប</div>
+                    </div>
+                    <div className="bg-purple-600 text-white p-4 rounded-xl shadow-sm">
+                        <div className="text-3xl font-bold">{totalRequests}</div>
+                        <div className="text-sm opacity-90">សំណើដកសរុប</div>
+                    </div>
+                    </div>
+
+                    {lowStockItems.length > 0 && (
+                    <div className="bg-red-50 border border-red-100 rounded-xl p-4 mt-4">
+                        <div className="flex items-center gap-2 text-red-700 font-bold mb-2">
+                        <AlertTriangle size={20} />
+                        <h3>សម្ភារៈជិតអស់ពីស្តុក ({lowStockItems.length})</h3>
+                        </div>
+                        <ul className="space-y-2">
+                        {lowStockItems.map(item => (
+                            <li key={item.id} className="flex justify-between items-center bg-white p-2 rounded border border-red-100 text-sm">
+                            <span>{item.name}</span>
+                            <span className="font-bold text-red-600">សល់: {item.quantity}</span>
+                            </li>
+                        ))}
+                        </ul>
+                    </div>
+                    )}
+                </div>
+                );
+            };
+
+            // --- ជំនួសកូដនេះត្រង់ចំណុច const HistoryView = () => { ... } ---
+
+// --- UPDATED HISTORY VIEW (FULL) ---
+           // --- UPDATED HISTORY VIEW (FIXED DELETE BUTTON) ---
+           // --- UPDATED HISTORY VIEW (With Add Item & Edit Reason) ---
+            const HistoryView = () => {
+                const [historyTab, setHistoryTab] = useState('direct');
+                const [editingGroup, setEditingGroup] = useState(null); 
+                const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+
+                // Local state for "Add Item" inside modal
+                const [newItemToAdd, setNewItemToAdd] = useState({ itemId: '', quantity: '' });
+
+                // 1. Prepare Data for Dropdown (Combine Local & Global items)
+                // Filter out broken items and prepare labels
+                const availableItemsForAdd = [
+                    ...items.map(i => ({ 
+                        label: `${i.name} (សល់: ${i.quantity})`, 
+                        value: i.id, 
+                        quantity: i.quantity,
+                        name: i.name,
+                        source: 'inventory_items'
+                    })),
+                    ...totalData
+                        .filter(i => i.status !== 'ខូច')
+                        .map(i => ({ 
+                            label: `${i.type} (សល់: ${i.quantity} _${i.status || ''})`, 
+                            value: i.id, 
+                            quantity: i.quantity,
+                            name: i.type,
+                            source: 'inventory',
+                            category: 'General'
+                        }))
+                ];
+
+                // 2. Filter raw items based on Tab
+                const rawHistoryItems = requests.filter(r =>
+                    historyTab === 'direct' ? r.type === 'DIRECT_OUT' : r.type === 'REQUEST_OUT'
+                );
+
+                // 3. Grouping Function
+                const getGroupedHistory = () => {
+                    const groups = {};
+                    rawHistoryItems.forEach(item => {
+                        // Group by Date (minute), Requester, Reason
+                        const dateKey = new Date(item.date).setSeconds(0, 0);
+                        const key = `${dateKey}_${item.requester || 'N/A'}_${item.reason || 'N/A'}`;
+
+                        if (!groups[key]) {
+                            groups[key] = {
+                                groupId: key,
+                                date: item.date,
+                                requester: item.requester,
+                                reason: item.reason,
+                                type: item.type,
+                                items: []
+                            };
+                        }
+                        groups[key].items.push(item);
+                    });
+                    return Object.values(groups).sort((a, b) => new Date(b.date) - new Date(a.date));
+                };
+
+                const groupedHistory = getGroupedHistory();
+
+                const formatDate = (isoString) => {
+                    if (!isoString) return 'N/A';
+                    const date = new Date(isoString);
+                    return date.toLocaleDateString('km-KH', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                };
+
+                // --- MODAL ACTIONS ---
+
+                // A. Add new item to temporary list
+                const handleAddItemToBatch = () => {
+                    if (!newItemToAdd.itemId || !newItemToAdd.quantity) {
+                        alert("សូមជ្រើសរើសសម្ភារៈ និងចំនួន!");
+                        return;
+                    }
+
+                    const selectedItem = availableItemsForAdd.find(i => i.value === newItemToAdd.itemId);
+                    if (!selectedItem) return;
+
+                    if (parseInt(newItemToAdd.quantity) > parseInt(selectedItem.quantity)) {
+                        alert(`ស្តុកមិនគ្រប់គ្រាន់! (សល់: ${selectedItem.quantity})`);
+                        return;
+                    }
+
+                    const newItemObj = {
+                        id: `NEW_${Date.now()}`, // Temporary ID
+                        itemId: selectedItem.value,
+                        itemName: selectedItem.name,
+                        category: selectedItem.category || 'Unknown', // Fallback
+                        quantity: newItemToAdd.quantity,
+                        isNew: true, // Flag to identify new items
+                        source: selectedItem.source
+                    };
+
+                    setEditingGroup({
+                        ...editingGroup,
+                        items: [...editingGroup.items, newItemObj]
+                    });
+                    setNewItemToAdd({ itemId: '', quantity: '' }); // Reset inputs
+                };
+
+                // B. Remove item (handle both existing and new)
+                const handleRemoveFromBatch = (indexToRemove) => {
+                    const itemToRemove = editingGroup.items[indexToRemove];
+                    const newItems = editingGroup.items.filter((_, idx) => idx !== indexToRemove);
+                    
+                    let newDeletedIds = editingGroup.deletedIds || [];
+                    if (!itemToRemove.isNew) {
+                        newDeletedIds.push(itemToRemove.id);
+                    }
+
+                    setEditingGroup({
+                        ...editingGroup,
+                        items: newItems,
+                        deletedIds: newDeletedIds
+                    });
+                };
+
+                // C. Change Quantity
+                const handleChangeBatchQty = (index, newQty) => {
+                    const updatedItems = [...editingGroup.items];
+                    updatedItems[index].quantity = newQty;
+                    setEditingGroup({ ...editingGroup, items: updatedItems });
+                };
+
+                // --- SAVE / UPDATE LOGIC (Main Function) ---
+             // --- UPDATED: Transactional Batch Update ---
+                const handleBatchUpdate = async (e) => {
+                    e.preventDefault();
+
+                    if (editingGroup.items.length === 0 && (!editingGroup.deletedIds || editingGroup.deletedIds.length === 0)) {
+                        setEditingGroup(null);
+                        return;
+                    }
+
+                    try {
+                        const newISODate = new Date(editingGroup.newDate).toISOString();
+                        const newReason = editingGroup.newReason;
+                        const updates = {}; // For non-transactional updates (Requests Log)
+
+                        // 1. Process Deletions (Restore Stock using Transaction)
+                        if (editingGroup.deletedIds) {
+                            for (const deletedId of editingGroup.deletedIds) {
+                                const originalItem = rawHistoryItems.find(i => i.id === deletedId);
+                                if (originalItem) {
+                                    const sourcePath = originalItem.source === 'inventory' ? 'inventory' : 'inventory_items';
+                                    const itemRef = ref(db, `${sourcePath}/${originalItem.itemId}`);
+                                    
+                                    // Transaction: Add stock back safely
+                                    await runTransaction(itemRef, (item) => {
+                                        if (item) {
+                                            item.quantity = (parseInt(item.quantity) || 0) + parseInt(originalItem.quantity);
+                                            if(sourcePath === 'inventory_items') item.lastUpdated = new Date().toISOString();
+                                            return item;
+                                        }
+                                        return item;
+                                    });
+
+                                    // Soft delete request log
+                                    updates[`recycle_bin/requests/${deletedId}`] = { ...originalItem, deletedAt: new Date().toISOString() };
+                                    updates[`inventory_requests/${deletedId}`] = null;
+                                }
+                            }
+                        }
+
+                        // 2. Process Updates & New Items
+                        for (const item of editingGroup.items) {
+                            if (item.isNew) {
+                                // NEW ITEM: Transactional Deduct
+                                const sourcePath = item.source === 'inventory' ? 'inventory' : 'inventory_items';
+                                const itemRef = ref(db, `${sourcePath}/${item.itemId}`);
+                                const qtyToDeduct = parseInt(item.quantity);
+
+                                await runTransaction(itemRef, (dbItem) => {
+                                    if(dbItem) {
+                                        dbItem.quantity = (parseInt(dbItem.quantity) || 0) - qtyToDeduct; 
+                                        // Note: Should check for negative stock here ideally, but for forced admin add, we might allow or check logic
+                                        return dbItem;
+                                    }
+                                    return dbItem;
+                                });
+
+                                // Add Request Log
+                                const newReqKey = push(ref(db, 'inventory_requests')).key;
+                                updates[`inventory_requests/${newReqKey}`] = {
+                                    type: editingGroup.type,
+                                    itemId: item.itemId,
+                                    itemName: item.itemName,
+                                    category: item.category || 'General',
+                                    quantity: qtyToDeduct,
+                                    reason: newReason,
+                                    requester: editingGroup.requester,
+                                    date: newISODate,
+                                    status: 'COMPLETED',
+                                    source: item.source
+                                };
+
+                            } else {
+                                // EXISTING ITEM: Transactional Adjustment
+                                const originalItem = rawHistoryItems.find(i => i.id === item.id);
+                                if (!originalItem) continue;
+
+                                const oldQty = parseInt(originalItem.quantity);
+                                const newQty = parseInt(item.quantity);
+
+                                if (oldQty !== newQty) {
+                                    const diff = newQty - oldQty; // + means took more (deduct stock), - means took less (add stock)
+                                    const sourcePath = originalItem.source === 'inventory' ? 'inventory' : 'inventory_items';
+                                    const itemRef = ref(db, `${sourcePath}/${originalItem.itemId}`);
+
+                                    await runTransaction(itemRef, (dbItem) => {
+                                        if(dbItem) {
+                                            dbItem.quantity = (parseInt(dbItem.quantity) || 0) - diff;
+                                            return dbItem;
+                                        }
+                                        return dbItem;
+                                    });
+                                }
+
+                                // Update Log Data
+                                updates[`inventory_requests/${item.id}/date`] = newISODate;
+                                updates[`inventory_requests/${item.id}/reason`] = newReason;
+                                updates[`inventory_requests/${item.id}/quantity`] = newQty;
+                            }
+                        }
+
+                        // Apply Log Updates
+                        await update(ref(db), updates);
+                        showNotification('កែប្រែទិន្នន័យជោគជ័យ!', 'success');
+                        setEditingGroup(null);
+                        setNewItemToAdd({ itemId: '', quantity: '' });
+
+                    } catch (error) {
+                        console.error("Batch Transaction Error:", error);
+                        showNotification('បរាជ័យក្នុងការកែប្រែ (ទិន្នន័យអាចមានការប្រែប្រួល)', 'error');
+                    }
+                };
+
+              // --- UPDATED: Transactional Group Delete ---
+                const handleDeleteGroup = (group) => {
+                    setConfirmModal({
+                        isOpen: true,
+                        title: 'លុបប្រវត្តិទាំងមូល',
+                        message: `តើអ្នកពិតជាចង់លុបប្រវត្តិទាំងមូលនេះមែនទេ? ស្តុកនឹងត្រូវបានបង្វិលចូលវិញ។`,
+                        type: 'danger',
+                        onConfirm: async () => {
+                            try {
+                                const updates = {};
+                                
+                                for (const item of group.items) {
+                                    const sourcePath = item.source === 'inventory' ? 'inventory' : 'inventory_items';
+                                    // Fallback for ID mismatch
+                                    let invId = item.itemId;
+                                    if (sourcePath === 'inventory_items' && !items.find(i => i.id === invId)) {
+                                         const match = items.find(i => i.name === item.itemName);
+                                         if(match) invId = match.id;
+                                    }
+
+                                    if (invId) {
+                                        const itemRef = ref(db, `${sourcePath}/${invId}`);
+                                        // Transactional Restore
+                                        await runTransaction(itemRef, (dbItem) => {
+                                            if (dbItem) {
+                                                dbItem.quantity = (parseInt(dbItem.quantity) || 0) + parseInt(item.quantity);
+                                                return dbItem;
+                                            }
+                                            return dbItem;
+                                        });
+                                    }
+
+                                    updates[`recycle_bin/requests/${item.id}`] = { ...item, deletedAt: new Date().toISOString() };
+                                    updates[`inventory_requests/${item.id}`] = null;
+                                }
+
+                                await update(ref(db), updates);
+                                showNotification('បានលុបជោគជ័យ!', 'success');
+                                closeConfirmModal();
+                            } catch (e) { 
+                                console.error(e);
+                                showNotification('បរាជ័យ', 'error'); 
+                            }
+                        }
+                    });
+                };
+                // --- EXPORT FUNCTIONS ---
+                const exportToExcel = () => {
+                     try {
+                        if (groupedHistory.length === 0) { alert("គ្មានទិន្នន័យ"); return; }
+                        const dataToExport = [];
+                        groupedHistory.forEach((group, gIndex) => {
+                            dataToExport.push({ 'ល.រ': `Transaction #${gIndex + 1}`, 'កាលបរិច្ឆេទ': formatDate(group.date), 'អ្នកស្នើសុំ': group.requester || '-', 'មូលហេតុ': group.reason, 'ឈ្មោះសម្ភារៈ': '', 'ចំនួន': '' });
+                            group.items.forEach((item, iIndex) => { dataToExport.push({ 'ល.រ': `${gIndex + 1}.${iIndex + 1}`, 'កាលបរិច្ឆេទ': '', 'អ្នកស្នើសុំ': '', 'មូលហេតុ': '', 'ឈ្មោះសម្ភារៈ': item.itemName, 'ចំនួន': item.quantity }); });
+                            dataToExport.push({});
+                        });
+                        if (typeof XLSX === 'undefined') return;
+                        const wb = XLSX.utils.book_new();
+                        const ws = XLSX.utils.json_to_sheet(dataToExport);
+                        XLSX.utils.book_append_sheet(wb, ws, "History");
+                        XLSX.writeFile(wb, `History_${new Date().toISOString().slice(0, 10)}.xlsx`);
+                    } catch (error) { console.error(error); }
+                };
+
+                const downloadPDF = () => {
+                    if (groupedHistory.length === 0) return;
+                    setIsGeneratingPDF(true);
+                    showNotification("កំពុងបង្កើត PDF...", "info");
+                    const vouchersHtml = groupedHistory.map((group, index) => {
+                        const itemRows = group.items.map((item, idx) => `
+                        <tr style="border-bottom: 1px solid #eee;">
+                            <td style="padding: 8px; text-align: center;">${idx + 1}</td>
+                            <td style="padding: 8px;">${item.itemName} <span style="font-size: 10px; color: #666;">(${item.category})</span></td>
+                            <td style="padding: 8px; text-align: center; font-weight: bold;">${item.quantity}</td>
+                        </tr>`).join('');
+                        return `
+                        <div style="page-break-inside: avoid; margin-bottom: 20px; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+                            <div style="background-color: #f8fafc; padding: 15px; border-bottom: 1px solid #ddd;">
+                                <table style="width: 100%;">
+                                    <tr><td><div style="font-weight: bold; color: #1e40af;">ប្រតិបត្តិការ #${index + 1}</div><div style="font-size: 12px; color: #64748b;">${formatDate(group.date)}</div></td><td style="text-align: right;"><div style="font-weight: bold;">${group.requester || 'N/A'}</div><div style="font-size: 12px; color: #64748b;">${group.reason}</div></td></tr>
+                                </table>
+                            </div>
+                            <div style="padding: 10px;"><table style="width: 100%; border-collapse: collapse; font-size: 12px;"><thead><tr style="background-color: #f1f5f9; color: #475569;"><th style="padding: 8px; text-align: center; width: 40px;">#</th><th style="padding: 8px; text-align: left;">ឈ្មោះសម្ភារៈ</th><th style="padding: 8px; text-align: center; width: 60px;">ចំនួន</th></tr></thead><tbody>${itemRows}</tbody></table></div>
+                        </div>`;
+                    }).join('');
+                    const element = document.createElement('div');
+                    element.innerHTML = `<div style="font-family: 'Kantumruy Pro', sans-serif; padding: 20px; background: white; width: 100%;"><div style="text-align: center; margin-bottom: 20px;"><h2 style="color: #1d4ed8; margin: 0;">របាយការណ៍ប្រវត្តិ</h2><p style="font-size: 12px; color: #666;">Generated: ${new Date().toLocaleString('km-KH')}</p></div>${vouchersHtml}</div>`;
+                    const opt = { margin: 10, filename: `Inventory_History.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
+                    html2pdf().set(opt).from(element).save().then(() => setIsGeneratingPDF(false));
+                };
+
+                return (
+                    <div className="animate-fadeIn relative pb-20">
+                        <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <History size={20} className="text-orange-600" /> ប្រវត្តិប្រតិបត្តិការ
+                        </h2>
+
+                        <div className="flex flex-col gap-3 mb-6">
+                            <div className="flex gap-2 bg-gray-100 rounded-lg p-1">
+                                <button onClick={() => setHistoryTab('direct')} className={`flex-1 py-2 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-2 ${historyTab === 'direct' ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-500'}`}><PackageMinus size={16} /> ដកចេញទូទៅ</button>
+                                <button onClick={() => setHistoryTab('request')} className={`flex-1 py-2 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-2 ${historyTab === 'request' ? 'bg-white text-purple-600 shadow-sm' : 'text-gray-500'}`}><ClipboardList size={16} /> ប្រវត្តិសំណើ</button>
+                            </div>
+                            <div className="flex justify-end gap-2">
+                                <button onClick={exportToExcel} className="flex items-center gap-1 bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-700 shadow-sm"><FileSpreadsheet size={14} /> Excel</button>
+                                <button onClick={downloadPDF} disabled={isGeneratingPDF} className="flex items-center gap-1 bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-700 shadow-sm disabled:opacity-50">{isGeneratingPDF ? <span className="animate-spin">⏳</span> : <Download size={14} />} PDF</button>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            {groupedHistory.map(group => (
+                                <div key={group.groupId} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                                    <div className="bg-gray-50 p-4 border-b border-gray-100 flex justify-between items-start">
+                                        <div className="flex gap-3">
+                                            <div className={`p-2 rounded-lg h-fit ${group.type === 'REQUEST_OUT' ? 'bg-purple-100 text-purple-600' : 'bg-orange-100 text-orange-600'}`}>
+                                                {group.type === 'REQUEST_OUT' ? <ClipboardList size={20} /> : <PackageMinus size={20} />}
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <h3 className="font-bold text-gray-800">{group.requester || 'មិនមានឈ្មោះ'}</h3>
+                                                    <span className="text-xs bg-white border px-1.5 rounded text-gray-500">{group.items.length} មុខ</span>
+                                                </div>
+                                                <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                                                    <Calendar size={12} /> {formatDate(group.date)} <span>•</span> <span>{group.reason}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-1">
+                                            <button onClick={() => setEditingGroup({
+                                                ...group, newDate: group.date, newReason: group.reason,
+                                                items: JSON.parse(JSON.stringify(group.items)), deletedIds: []
+                                            })} className="text-blue-600 hover:bg-blue-100 p-2 rounded-lg transition-colors"><Edit size={18} /></button>
+                                            <button onClick={() => handleDeleteGroup(group)} className="text-red-500 hover:bg-red-100 p-2 rounded-lg transition-colors"><Trash2 size={18} /></button>
+                                        </div>
+                                    </div>
+                                    <div className="divide-y divide-gray-50">
+                                        {group.items.map(item => (
+                                            <div key={item.id} className="p-3 flex justify-between items-center pl-16 hover:bg-gray-50">
+                                                <div className="text-sm font-medium text-gray-700">{item.itemName} <span className="text-xs font-normal text-gray-400">({item.category})</span></div>
+                                                <div className="flex items-center gap-4"><span className="font-bold text-red-600 text-sm">-{item.quantity}</span></div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* --- BATCH EDIT MODAL (Full Features) --- */}
+                        {editingGroup && (
+                            <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-fadeIn">
+                                <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-popIn flex flex-col max-h-[90vh]">
+                                    <div className="bg-blue-600 p-4 flex justify-between items-center text-white shrink-0">
+                                        <h3 className="font-bold text-lg flex items-center gap-2"><Edit size={20} /> កែប្រែរួម (Batch Edit)</h3>
+                                        <button onClick={() => {setEditingGroup(null); setNewItemToAdd({itemId:'', quantity:''})}} className="hover:bg-blue-700 p-1 rounded transition-colors"><X size={24} /></button>
+                                    </div>
+
+                                    <div className="p-5 overflow-y-auto custom-scrollbar">
+                                        <form onSubmit={handleBatchUpdate}>
+                                            <div className="grid grid-cols-1 gap-4 mb-4">
+                                                <div>
+                                                    <label className="block text-sm font-bold text-gray-700 mb-1">កាលបរិច្ឆេទ & ម៉ោង</label>
+                                                    <input type="datetime-local" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                                        value={(() => { const d = new Date(editingGroup.newDate); const off = d.getTimezoneOffset()*60000; return new Date(d.getTime()-off).toISOString().slice(0,16); })()}
+                                                        onChange={(e) => setEditingGroup({ ...editingGroup, newDate: e.target.value })} required />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm font-bold text-gray-700 mb-1">មូលហេតុ/យកទៅណា</label>
+                                                    <input type="text" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                                        value={editingGroup.newReason}
+                                                        onChange={(e) => setEditingGroup({ ...editingGroup, newReason: e.target.value })} required />
+                                                </div>
+                                            </div>
+
+                                            {/* ADD NEW ITEM SECTION */}
+                                            <div className="bg-green-50 p-3 rounded-lg border border-green-100 mb-4">
+                                                <label className="block text-sm font-bold text-green-800 mb-2">➕ បន្ថែមសម្ភារៈថ្មីចូលក្រុមនេះ</label>
+                                                <div className="flex gap-2">
+                                                    <div className="flex-1">
+                                                        <Select label="" value={newItemToAdd.itemId} 
+                                                            onChange={(e) => setNewItemToAdd({...newItemToAdd, itemId: e.target.value})}
+                                                            options={availableItemsForAdd} 
+                                                        />
+                                                    </div>
+                                                    <div className="w-20">
+                                                        <input type="number" placeholder="Qty" className="w-full px-2 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
+                                                            value={newItemToAdd.quantity} onChange={(e) => setNewItemToAdd({...newItemToAdd, quantity: e.target.value})} />
+                                                    </div>
+                                                    <button type="button" onClick={handleAddItemToBatch} className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 font-bold">Add</button>
+                                                </div>
+                                            </div>
+
+                                            {/* ITEMS LIST */}
+                                            <div className="mb-4">
+                                                <label className="block text-sm font-bold text-gray-700 mb-2">បញ្ជីសម្ភារៈ ({editingGroup.items.length})</label>
+                                                <div className="space-y-2 bg-gray-50 p-3 rounded-xl border border-gray-100 max-h-60 overflow-y-auto custom-scrollbar">
+                                                    {editingGroup.items.map((item, index) => (
+                                                        <div key={item.id} className={`flex items-center justify-between p-2.5 rounded-lg shadow-sm border ${item.isNew ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'}`}>
+                                                            <div className="flex-1 min-w-0 pr-3">
+                                                                <div className="font-bold text-gray-800 truncate text-sm">
+                                                                    {item.isNew && <span className="text-green-600 text-xs mr-1">[New]</span>}
+                                                                    {item.itemName}
+                                                                </div>
+                                                                <div className="text-xs text-gray-500">{item.category}</div>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-20"><input type="number" min="1" value={item.quantity} onChange={(e) => handleChangeBatchQty(index, e.target.value)} className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-center font-bold text-blue-600 focus:ring-2 focus:ring-blue-500 outline-none text-sm" /></div>
+                                                                <button type="button" onClick={() => handleRemoveFromBatch(index)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={18} /></button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                    {editingGroup.items.length === 0 && <div className="text-center text-red-500 text-sm py-2">បានលុបទាំងអស់</div>}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex gap-3 pt-2 border-t border-gray-100">
+                                                <Button onClick={() => {setEditingGroup(null); setNewItemToAdd({itemId:'', quantity:''})}} variant="secondary" className="flex-1">បោះបង់</Button>
+                                                <Button type="submit" variant="success" className="flex-1 shadow-green-200">រក្សាទុកការកែប្រែ</Button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+
+            const InventoryView = () => {
+                const [editingItem, setEditingItem] = useState(null);
+                // --- NEW: Viewing Cabinet State ---
+                const [viewingCabinet, setViewingCabinet] = useState(null);
+                // NEW State for PDF loading
+                const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+
+                const filteredItems = items.filter(item => 
+                    item.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                    item.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    item.cabinetNo?.toLowerCase().includes(searchTerm.toLowerCase()) 
+                );
+
+                // --- NEW: Grouping Logic ---
+                const groupedItems = filteredItems.reduce((acc, item) => {
+                    const key = item.cabinetNo || 'មិនមានលេខទូ';
+                    if (!acc[key]) acc[key] = [];
+                    acc[key].push(item);
+                    return acc;
+                }, {});
+
+                const sortedCabinetKeys = Object.keys(groupedItems).sort((a, b) => {
+                    if(a === 'មិនមានលេខទូ') return 1;
+                    if(b === 'មិនមានលេខទូ') return -1;
+                    return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+                });
+
+                // --- Aggregation Logic for Exports ---
+                const getAggregatedData = () => {
+                    const aggMap = {};
+                    
+                    filteredItems.forEach(item => {
+                        // Key by Name and Category to identify "same item"
+                        const key = `${item.name}_${item.category}`;
+                        
+                        if (!aggMap[key]) {
+                            aggMap[key] = {
+                                name: item.name,
+                                category: item.category,
+                                unit: item.unit,
+                                description: item.description,
+                                quantity: 0,
+                                locations: new Set() // To store unique locations
+                            };
+                        }
+                        
+                        // Sum quantity
+                        aggMap[key].quantity += parseInt(item.quantity || 0);
+                        
+                        // Add location
+                        const locLabel = getLocationLabel(item.cabinetNo).replace('Cabinet ', 'ទូទី');
+                        if (locLabel) aggMap[key].locations.add(locLabel);
+                    });
+
+                    return Object.values(aggMap).map(item => ({
+                        ...item,
+                        locationString: Array.from(item.locations).join(', ')
+                    }));
+                };
+
+                // --- NEW: Inventory Export Logic ---
+                const exportToExcel = () => {
+                    try {
+                        if (filteredItems.length === 0) {
+                            alert("គ្មានទិន្នន័យសម្រាប់ Export ទេ");
+                            return;
+                        }
+                        
+                        const aggregatedData = getAggregatedData();
+
+                        const dataToExport = aggregatedData.map((item, index) => ({
+                            'ល.រ': index + 1,
+                            'ឈ្មោះសម្ភារៈ': item.name,
+                            'ប្រភេទ': item.category,
+                            'ទីតាំង': item.locationString || 'N/A',
+                            'ចំនួន': item.quantity,
+                            'ខ្នាត': item.unit,
+                            'បរិយាយ': item.description
+                        }));
+
+                        if (typeof XLSX === 'undefined') {
+                            alert("កំពុងដំណើរការ Library សូមព្យាយាមម្តងទៀត!");
+                            return;
+                        }
+
+                        const wb = XLSX.utils.book_new();
+                        const ws = XLSX.utils.json_to_sheet(dataToExport);
+                        XLSX.utils.book_append_sheet(wb, ws, "Inventory_List");
+                        XLSX.writeFile(wb, `Inventory_List_${new Date().toISOString().slice(0,10)}.xlsx`);
+                    } catch (error) {
+                        console.error("Excel Export Error:", error);
+                        alert("មានបញ្ហាក្នុងការ Export Excel");
+                    }
+                };
+
+                const downloadPDF = () => {
+                    if (filteredItems.length === 0) {
+                        alert("គ្មានទិន្នន័យសម្រាប់ Export ទេ");
+                        return;
+                    }
+                    
+                    setIsGeneratingPDF(true);
+                    showNotification("កំពុងបង្កើត PDF...", "info");
+
+                    const aggregatedData = getAggregatedData();
+
+                    const tableRows = aggregatedData.map((item, index) => `
+                        <tr style="border-bottom: 1px solid #eee;">
+                            <td style="padding: 10px; text-align: center;">${index + 1}</td>
+                            <td style="padding: 10px;">
+                                <div style="font-weight: bold; color: #1f2937;">${item.name}</div>
+                                <div style="font-size: 10px; color: #6b7280;">${item.category}</div>
+                            </td>
+                            <td style="padding: 10px;">${item.locationString || '-'}</td>
+                            <td style="padding: 10px; text-align: center; font-weight: bold;">
+                                ${item.quantity} <span style="font-weight: normal; font-size: 10px;">${item.unit || 'pcs'}</span>
+                            </td>
+                            <td style="padding: 10px; color: #4b5563; font-size: 11px;">${item.description || '-'}</td>
+                        </tr>
+                    `).join('');
+
+                    const totalQty = aggregatedData.reduce((acc, item) => acc + parseInt(item.quantity || 0), 0);
+                    
+                    const element = document.createElement('div');
+                    element.innerHTML = `
+                        <div style="font-family: 'Kantumruy Pro', sans-serif; color: #1f2937; padding: 20px; background: white; width: 100%;">
+                            <style>
+                                .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #3b82f6; padding-bottom: 15px; }
+                                .logo-text { font-size: 22px; font-weight: 700; color: #1d4ed8; text-transform: uppercase; }
+                                .sub-header { font-size: 14px; color: #6b7280; margin-top: 5px; }
+                                .report-title { text-align: center; font-size: 16px; font-weight: bold; margin: 15px 0; color: #111827; }
+                                table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
+                                th { background-color: #f8fafc; color: #4b5563; font-weight: 600; padding: 8px; text-align: left; border-bottom: 2px solid #e2e8f0; }
+                                .summary-box { margin-top: 20px; display: flex; justify-content: flex-end; }
+                                .summary-table { width: auto; }
+                                .summary-table td { padding: 4px 15px; font-size: 12px; }
+                                .signatures { margin-top: 50px; display: flex; justify-content: space-between; padding: 0 20px; }
+                                .sig-block { text-align: center; width: 150px; }
+                                .sig-line { border-top: 1px solid #9ca3af; margin-top: 40px; padding-top: 8px; font-size: 11px; font-weight: bold; }
+                            </style>
+
+                            <div class="header">
+                                <div class="logo-text">IT Inventory Management</div>
+                                <div class="sub-header">ប្រព័ន្ធគ្រប់គ្រងស្តុកសម្ភារៈបច្ចេកវិទ្យា</div>
+                                <div style="font-size: 10px; color: #9ca3af; margin-top: 5px;">Generated on: ${new Date().toLocaleString('km-KH')}</div>
+                            </div>
+
+                            <div class="report-title">
+                                របាយការណ៍បញ្ជីសារពើភណ្ឌ (Inventory List - Aggregated)
+                            </div>
+
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th style="width: 40px; text-align: center;">ល.រ</th>
+                                        <th>ឈ្មោះសម្ភារៈ / ប្រភេទ</th>
+                                        <th>ទីតាំង</th>
+                                        <th style="width: 80px; text-align: center;">ចំនួន</th>
+                                        <th>បរិយាយ</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${tableRows}
+                                </tbody>
+                            </table>
+
+                            <div class="summary-box">
+                                <table class="summary-table">
+                                    <tr>
+                                        <td style="text-align: right; color: #6b7280;">មុខទំនិញសរុប:</td>
+                                        <td style="font-weight: bold;">${aggregatedData.length}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="text-align: right; color: #6b7280;">បរិមាណសរុប:</td>
+                                        <td style="font-weight: bold; color: #1d4ed8;">${totalQty}</td>
+                                    </tr>
+                                </table>
+                            </div>
+
+                            <div class="signatures">
+                                <div class="sig-block">
+                                    <div style="font-size: 11px; color: #6b7280; margin-bottom: 5px;">រៀបចំដោយ</div>
+                                    <div class="sig-line">ហត្ថលេខា & ឈ្មោះ</div>
+                                </div>
+                                <div class="sig-block">
+                                    <div style="font-size: 11px; color: #6b7280; margin-bottom: 5px;">ត្រួតពិនិត្យដោយ</div>
+                                    <div class="sig-line">ហត្ថលេខា & ឈ្មោះ</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                    const opt = {
+                        margin: 10,
+                        filename: `Inventory_List_${new Date().toISOString().slice(0,10)}.pdf`,
+                        image: { type: 'jpeg', quality: 0.98 },
+                        html2canvas: { scale: 2, useCORS: true },
+                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                    };
+
+                    html2pdf().set(opt).from(element).save().then(() => {
+                        setIsGeneratingPDF(false);
+                        showNotification("បានទាញយក PDF ជោគជ័យ!", "success");
+                    }).catch(err => {
+                         console.error(err);
+                         setIsGeneratingPDF(false);
+                         alert("Error PDF: " + err.message);
+                    });
+                };
+
+                return (
+                <div className="animate-fadeIn relative">
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-xl font-bold text-gray-800">បញ្ជីសម្ភារៈក្នុងស្តុក</h2>
+                        
+                        {/* --- NEW: Export Buttons --- */}
+                        <div className="flex gap-2">
+                            <button 
+                                onClick={exportToExcel}
+                                className="flex items-center gap-1 bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-700 transition-colors shadow-sm"
+                            >
+                                <FileSpreadsheet size={14} /> Excel
+                            </button>
+                            <button 
+                                onClick={downloadPDF}
+                                disabled={isGeneratingPDF}
+                                className="flex items-center gap-1 bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-700 transition-colors shadow-sm disabled:bg-red-300"
+                            >
+                                {isGeneratingPDF ? (
+                                    <span className="animate-spin mr-1">⏳</span>
+                                ) : (
+                                    <Download size={14} />
+                                )}
+                                PDF
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div className="relative mb-6">
+                        <Search className="absolute left-3 top-2.5 text-gray-400" size={20} />
+                        <input
+                            type="text"
+                            placeholder="ស្វែងរកឈ្មោះ ប្រភេទ ឬ លេខទូ..." 
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                        />
+                    </div>
+
+                    {/* --- Cabinet Grid View --- */}
+                    <div className="grid grid-cols-1 gap-4 pb-20">
+                        {sortedCabinetKeys.map(cabinet => {
+                            const itemsInCabinet = groupedItems[cabinet];
+                            const itemCount = itemsInCabinet.length;
+                            const totalQty = itemsInCabinet.reduce((sum, i) => sum + parseInt(i.quantity || 0), 0);
+                            const displayName = getLocationLabel(cabinet).replace('Cabinet ', 'ទូទី');
+
+                            return (
+                                <div key={cabinet} 
+                                    onClick={() => setViewingCabinet({ name: cabinet, items: itemsInCabinet })}
+                                    className="bg-white p-5 rounded-2xl border border-blue-50 shadow-sm hover:shadow-md transition-all cursor-pointer flex justify-between items-center group"
+                                >
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-14 h-14 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                            {cabinet.startsWith('Cabinet') ? <Package size={28} strokeWidth={1.5} /> : <MapPin size={28} strokeWidth={1.5} />}
+                                        </div>
+                                        <div>
+                                            <h3 className="font-bold text-lg text-gray-800 group-hover:text-blue-700 transition-colors">
+                                                {displayName}
+                                            </h3>
+                                            <p className="text-sm text-gray-500 mt-1 flex items-center gap-2">
+                                                <span className="bg-gray-100 px-2 py-0.5 rounded text-xs font-medium text-gray-600">{itemCount} មុខទំនិញ</span>
+                                                <span className="w-1 h-1 rounded-full bg-gray-300"></span>
+                                                <span>សរុប {totalQty} PCS</span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="text-gray-300 group-hover:text-blue-600 group-hover:translate-x-1 transition-all">
+                                        <ChevronRight size={24} />
+                                    </div>
+                                </div>
+                            );
+                        })}
+
+                        {sortedCabinetKeys.length === 0 && (
+                            <div className="text-center py-20 text-gray-400 flex flex-col items-center">
+                                <Box size={48} strokeWidth={1} className="mb-4 opacity-50"/>
+                                <p>រកមិនឃើញទិន្នន័យ</p>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* --- Cabinet Detail Modal --- */}
+                    {viewingCabinet && (
+                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
+                            <div className="bg-white rounded-2xl w-full max-w-lg h-[85vh] shadow-2xl flex flex-col animate-popIn overflow-hidden">
+                                {/* Header */}
+                                <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-white z-10">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
+                                            {viewingCabinet.name.startsWith('Cabinet') ? <Package size={20} /> : <MapPin size={20} />}
+                                        </div>
+                                        <div>
+                                            <h3 className="font-bold text-xl text-gray-800">{getLocationLabel(viewingCabinet.name).replace('Cabinet ', 'ទូទី')}</h3>
+                                            <p className="text-xs text-gray-500">{viewingCabinet.items.length} មុខទំនិញនៅក្នុងនេះ</p>
+                                        </div>
+                                    </div>
+                                    <button onClick={() => setViewingCabinet(null)} className="p-2 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition-colors">
+                                        <X size={24} />
+                                    </button>
+                                </div>
+                                
+                                {/* Scrollable List */}
+                                <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-gray-50">
+                                    {viewingCabinet.items.map(item => (
+                                        <div key={item.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex justify-between items-center hover:border-blue-200 transition-colors">
+                                            <div>
+                                                <h3 className="font-bold text-gray-800">{item.name}</h3>
+                                                <p className="text-xs text-gray-500 mt-1">{item.category} • {item.description || 'គ្មានការបរិយាយ'}</p>
+                                            </div>
+                                            <div className="text-right flex items-center gap-3">
+                                                <div className={`text-sm font-bold px-2.5 py-1 rounded-lg ${item.quantity < 5 ? 'bg-red-50 text-red-600 ring-1 ring-red-100' : 'bg-green-50 text-green-600 ring-1 ring-green-100'}`}>
+                                                    {item.quantity} {item.unit || 'pcs'}
+                                                </div>
+                                                
+                                                <div className="flex flex-col gap-1">
+                                                    <button 
+                                                        onClick={() => setEditingItem(item)}
+                                                        className="bg-gray-50 text-blue-600 p-1.5 rounded-lg hover:bg-blue-100 transition-colors"
+                                                    >
+                                                        <Edit size={16} />
+                                                    </button>
+
+                                                    <button 
+                                                        onClick={() => handleDeleteItem(item.id, item.name)} 
+                                                        className="bg-gray-50 text-red-500 p-1.5 rounded-lg hover:bg-red-100 transition-colors"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Edit Modal */}
+                    {editingItem && (<div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
+                        <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden animate-fadeIn">
+                        <div className="bg-blue-600 p-4 flex justify-between items-center text-white">
+                            <h3 className="font-bold text-lg flex items-center gap-2"><Edit size={20}/> កែប្រែទិន្នន័យ</h3>
+                            <button onClick={() => setEditingItem(null)} className="hover:bg-blue-700 p-1 rounded"><X size={20}/></button>
+                        </div>
+                        
+                        <div className="p-5">
+                            <form onSubmit={(e) => handleUpdateItem(e, editingItem, setEditingItem)}>
+                            <Input 
+                                label="ឈ្មោះសម្ភារៈ" 
+                                required 
+                                value={editingItem.name} 
+                                onChange={e => setEditingItem({...editingItem, name: e.target.value})} 
+                            />
+                            <div className="grid grid-cols-2 gap-3">
+                                <Select 
+                                label="ប្រភេទ" 
+                                value={editingItem.category} 
+                                onChange={e => setEditingItem({...editingItem, category: e.target.value})}
+                                options={[
+                                    {label: "Computer", value: "Computer"},
+                                    {label: "Accessory", value: "Accessory"},
+                                    {label: "Network", value: "Network"},
+                                    {label: "Printer", value: "Printer"},
+                                    {label: "Other", value: "Other"}
+                                ]}
+                                />
+                                <Select 
+                                    label="ទីតាំង" 
+                                    value={editingItem.cabinetNo} 
+                                    onChange={e => setEditingItem({...editingItem, cabinetNo: e.target.value})}
+                                    options={LOCATION_OPTIONS}
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <Input 
+                                    label="ចំនួន" 
+                                    type="number" 
+                                    required 
+                                    value={editingItem.quantity} 
+                                    onChange={e => setEditingItem({...editingItem, quantity: e.target.value})} 
+                                />
+                                <Input 
+                                    label="ខ្នាត (Unit)" 
+                                    value={editingItem.unit} 
+                                    onChange={e => setEditingItem({...editingItem, unit: e.target.value})} 
+                                />
+                            </div>
+                            <Input 
+                                label="បរិយាយ (ផ្សេងៗ)" 
+                                value={editingItem.description} 
+                                onChange={e => setEditingItem({...editingItem, description: e.target.value})} 
+                            />
+                            
+                            <div className="flex gap-3 mt-6">
+                                <Button onClick={() => setEditingItem(null)} variant="secondary" className="flex-1">បោះបង់</Button>
+                                <Button type="submit" variant="success" className="flex-1">រក្សាទុក</Button>
+                            </div>
+                            </form>
+                        </div>
+                        </div>
+                    </div>
+                    )}
+                </div>
+                );
+            };
+
+            // --- UPDATED OPERATIONS VIEW ---
+            const OperationsView = () => {
+                const [mode, setMode] = useState('in');
+                const [formData, setFormData] = useState({
+                    name: '', category: '', quantity: '', unit: '', description: '', cabinetNo: '',
+                    itemId: '', reason: '', requester: '', itemName: ''
+                });
+                
+                const [stockOutCart, setStockOutCart] = useState([]);
+                const [currentStockOut, setCurrentStockOut] = useState({ itemId: '', quantity: '' });
+                const [requesterName, setRequesterName] = useState('');
+                const [generalReason, setGeneralReason] = useState('');
+
+                // Personnel State
+                const [personnel, setPersonnel] = useState([]);
+                const [personSearch, setPersonSearch] = useState('');
+                const [showDropdown, setShowDropdown] = useState(false);
+                const [selectedPerson, setSelectedPerson] = useState(null);
+
+                // Load User Data
+                useEffect(() => {
+                    const initUserAppAuth = async () => {
+                        try { await signInAnonymously(userAuth); } catch (e) { console.log("User App Auth Skipped"); }
+                    };
+                    initUserAppAuth();
+                    const usersRef = ref(userDb, 'students'); 
+                    onValue(usersRef, (snapshot) => {
+                        const data = snapshot.val();
+                        const loadedPeople = [];
+                        if (data) {
+                            if (Array.isArray(data)) {
+                                loadedPeople.push(...data.filter(p => p)); 
+                            } else {
+                                for (const key in data) {
+                                    loadedPeople.push({ id_key: key, ...data[key] });
+                                }
+                            }
+                        }
+                        setPersonnel(loadedPeople);
+                    });
+                }, []);
+
+                const filteredPersonnel = personnel.filter(p => {
+                    if (!personSearch) return false;
+                    const searchLower = personSearch.toLowerCase();
+                    const name = String(p.Name || p.name || p['ឈ្មោះ'] || '').toLowerCase();
+                    const id = String(p.ID || p.id || p['អត្តលេខ'] || '').toLowerCase();
+                    return name.includes(searchLower) || id.includes(searchLower);
+                });
+
+                const handleSelectPerson = (person) => {
+                    setSelectedPerson(person);
+                    const name = person.Name || person.name || person['ឈ្មោះ'];
+                    const id = person.ID || person.id || person['អត្តលេខ'];
+                    setFormData(prev => ({ ...prev, requester: `${name} (${id})` }));
+                    setRequesterName(`${name} (${id})`);
+                    setPersonSearch(`${name} (${id})`);
+                    setShowDropdown(false);
+                };
+
+                const resetForm = () => {
+                    setFormData({
+                        name: '', category: '', quantity: '', unit: '', description: '', cabinetNo: '',
+                        itemId: '', reason: '', requester: '', itemName: ''
+                    });
+                    setStockOutCart([]);
+                    setRequesterName('');
+                    setGeneralReason('');
+                    setCurrentStockOut({ itemId: '', quantity: '' });
+                    setSelectedPerson(null);
+                    setPersonSearch('');
+                };
+
+                // --- LOGIC ថ្មីសម្រាប់បង្កើតបញ្ជី Dropdown ---
+                const combinedItems = [
+                    // 1. សម្ភារៈក្នុងស្តុកផ្ទាល់ (Inventory Items)
+                    ...items.map(i => ({ 
+                        ...i, 
+                        source: 'inventory_items', 
+                        displayName: i.name,
+                        // Label: Case (សល់: 50)
+                        selectLabel: `${i.name} (សល់: ${i.quantity})`
+                    })),
+                    
+                    // 2. ទិន្នន័យសរុប (Total Data /inventory)
+                    ...totalData
+                        .filter(i => i.status !== 'ខូច') // --- FILTER: មិនយករបស់ "ខូច" ---
+                        .map(i => ({ 
+                            ...i, 
+                            source: 'inventory', 
+                            displayName: i.type, 
+                            category: 'General', 
+                            name: i.type,
+                            // Label: Case (សល់: 1000 _ទំនេរ)
+                            selectLabel: `${i.type} (សល់: ${i.quantity} _${i.status || 'N/A'})`
+                        })) 
+                ];
+
+                const addToCart = () => {
+                    if (!currentStockOut.itemId || !currentStockOut.quantity) {
+                        showNotification('សូមជ្រើសរើសសម្ភារៈ និងចំនួន', 'error');
+                        return;
+                    }
+                    
+                    const item = combinedItems.find(i => i.id === currentStockOut.itemId);
+                    const qty = parseInt(currentStockOut.quantity);
+
+                    if (!item) return;
+                    if (qty > parseInt(item.quantity || 0)) {
+                        showNotification(`ស្តុកមិនគ្រប់គ្រាន់ (សល់: ${item.quantity})`, 'error');
+                        return;
+                    }
+
+                    const existingIndex = stockOutCart.findIndex(i => i.id === item.id);
+                    if (existingIndex >= 0) {
+                        const newCart = [...stockOutCart];
+                        const newQty = parseInt(newCart[existingIndex].outQty) + qty;
+                        if (newQty > item.quantity) {
+                            showNotification(`ចំនួនសរុបលើសពីស្តុក`, 'error');
+                            return;
+                        }
+                        newCart[existingIndex].outQty = newQty;
+                        setStockOutCart(newCart);
+                    } else {
+                        setStockOutCart([...stockOutCart, { ...item, name: item.displayName, outQty: qty, source: item.source }]);
+                    }
+                    
+                    setCurrentStockOut({ itemId: '', quantity: '' });
+                };
+
+                const removeFromCart = (index) => {
+                    const newCart = [...stockOutCart];
+                    newCart.splice(index, 1);
+                    setStockOutCart(newCart);
+                };
+
+                return (
+                <div className="animate-fadeIn pb-20">
+                    <h2 className="text-xl font-bold text-gray-800 mb-4">ប្រតិបត្តិការ</h2>
+                    
+                    <div className="flex gap-2 mb-6 p-1 bg-gray-100 rounded-lg">
+                    <button onClick={() => { setMode('in'); resetForm(); }} className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${mode === 'in' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}>បញ្ចូលស្តុក</button>
+                    <button onClick={() => { setMode('out'); resetForm(); }} className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${mode === 'out' ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-500'}`}>ដកចេញ</button>
+                    <button onClick={() => { setMode('request'); resetForm(); }} className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${mode === 'request' ? 'bg-white text-purple-600 shadow-sm' : 'text-gray-500'}`}>សំណើ</button>
+                    </div>
+
+                    <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+                    {mode === 'in' && (
+                        <form onSubmit={(e) => handleAddItem(e, formData, resetForm)}>
+                        <h3 className="text-lg font-bold text-blue-700 mb-4 flex items-center gap-2">
+                            <PackagePlus size={20}/> បញ្ចូលទិន្នន័យថ្មី
+                        </h3>
+                        <Input label="ឈ្មោះសម្ភារៈ" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                            <Select label="ប្រភេទ" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})}
+                            options={[{label: "Computer", value: "Computer"}, {label: "Accessory", value: "Accessory"}, {label: "Network", value: "Network"}, {label: "Printer", value: "Printer"}, {label: "Other", value: "Other"}]} />
+                            <Select label="ទីតាំង" required value={formData.cabinetNo} onChange={e => setFormData({...formData, cabinetNo: e.target.value})} options={LOCATION_OPTIONS} />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <Input label="ចំនួន" type="number" required value={formData.quantity} onChange={e => setFormData({...formData, quantity: e.target.value})} />
+                            <Input label="ខ្នាត (Unit)" placeholder="PCS, Set, Box..." value={formData.unit} onChange={e => setFormData({...formData, unit: e.target.value})} />
+                        </div>
+                        <Input label="ផ្សេងៗ" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
+                        <Button type="submit" variant="primary" className="w-full mt-4">រក្សាទុក</Button>
+                        </form>
+                    )}
+
+                    {mode === 'out' && (
+                        <div>
+                            <h3 className="text-lg font-bold text-orange-600 mb-4 flex items-center gap-2">
+                                <PackageMinus size={20}/> ដកសម្ភារៈចេញ (ច្រើនមុខ)
+                            </h3>
+                            
+                            <Input label="ឈ្មោះអ្នកស្នើសុំ / ឈ្មោះអ្នកដក" required value={requesterName} onChange={e => setRequesterName(e.target.value)} placeholder="ឈ្មោះអ្នកដក..." />
+
+                            <div className="bg-gray-50 p-4 rounded-xl mb-4 border border-gray-100">
+                                <h4 className="text-sm font-bold text-gray-700 mb-3">បន្ថែមសម្ភារៈចូលបញ្ជី</h4>
+                                <div className="flex gap-2 mb-2">
+                                    <div className="flex-1">
+                                        <Select 
+                                            label="ជ្រើសរើសសម្ភារៈ" 
+                                            value={currentStockOut.itemId} 
+                                            onChange={e => setCurrentStockOut({...currentStockOut, itemId: e.target.value})}
+                                            // --- UPDATED OPTIONS WITH STATUS ---
+                                            options={combinedItems.map(i => ({ label: i.selectLabel, value: i.id }))}
+                                        />
+                                    </div>
+                                    <div className="w-24">
+                                        <Input label="ចំនួន" type="number" value={currentStockOut.quantity} onChange={e => setCurrentStockOut({...currentStockOut, quantity: e.target.value})} />
+                                    </div>
+                                </div>
+                                <Button onClick={addToCart} variant="secondary" className="w-full py-2 text-sm">
+                                    <Plus size={16}/> បន្ថែមចូលបញ្ជី
+                                </Button>
+                            </div>
+
+                            {/* Cart List */}
+                            {stockOutCart.length > 0 && (
+                                <div className="mb-4">
+                                    <h4 className="text-sm font-bold text-gray-700 mb-2">បញ្ជីដក ({stockOutCart.length})</h4>
+                                    <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar border rounded-lg p-2">
+                                        {stockOutCart.map((item, index) => (
+                                            <div key={index} className="flex justify-between items-center bg-white p-2 rounded border border-gray-100 text-sm">
+                                                <div>
+                                                    <span className="font-medium">{item.name}</span>
+                                                    {/* Show Source/Status in Cart too if needed */}
+                                                    {item.source === 'inventory' && <span className="text-xs text-gray-500 ml-2">({item.status})</span>}
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-bold text-orange-600">x{item.outQty}</span>
+                                                    <button onClick={() => removeFromCart(index)} className="text-red-500 hover:bg-red-50 p-1 rounded">
+                                                        <Trash2 size={14}/>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            <Input label="មូលហេតុ/យកទៅណា" required value={generalReason} onChange={e => setGeneralReason(e.target.value)} />
+                            
+                            <Button 
+                                onClick={() => handleStockOut(stockOutCart, requesterName, generalReason, resetForm)}
+                                disabled={stockOutCart.length === 0 || !requesterName || !generalReason}
+                                className="w-full mt-4 bg-orange-600 hover:bg-orange-700 text-white"
+                            >
+                                កាត់ស្តុក (រក្សាទុក)
+                            </Button>
+                        </div>
+                    )}
+
+                    {mode === 'request' && (
+                        <form onSubmit={(e) => handleRequest(e, formData, resetForm)}>
+                        <h3 className="text-lg font-bold text-purple-600 mb-4 flex items-center gap-2"><ClipboardList size={20}/> បញ្ចូលទិន្នន័យសំណើ</h3>
+                        
+                        {/* Requester Search */}
+                        <div className="mb-4 relative">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">ឈ្មោះអ្នកស្នើសុំ (ស្វែងរកតាម ឈ្មោះ/អត្តលេខ)</label>
+                            <div className="relative">
+                                <input type="text" value={personSearch} required
+                                    onChange={(e) => { setPersonSearch(e.target.value); setShowDropdown(true); if(e.target.value === '') setSelectedPerson(null); }}
+                                    onFocus={() => setShowDropdown(true)} placeholder="វាយឈ្មោះ ឬ អត្តលេខ..."
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none pl-10" />
+                                <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
+                                {personSearch && ( <button type="button" onClick={() => {setPersonSearch(''); setSelectedPerson(null); setFormData(p=>({...p, requester: ''}))}} className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"><X size={18}/></button> )}
+                            </div>
+
+                            {/* Dropdown */}
+                            {showDropdown && personSearch && filteredPersonnel.length > 0 && (
+                                <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-lg shadow-xl mt-1 max-h-60 overflow-y-auto custom-scrollbar">
+                                    {filteredPersonnel.map((person, idx) => (
+                                        <div key={idx} onClick={() => handleSelectPerson(person)} className="p-3 hover:bg-purple-50 cursor-pointer border-b border-gray-100 flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden shrink-0">
+                                                {(person.Photo || person.photo || person['រូបថត']) ? <img src={person.Photo || person.photo || person['រូបថត']} className="w-full h-full object-cover"/> : <User className="w-full h-full p-1 text-gray-400"/>}
+                                            </div>
+                                            <div>
+                                                <div className="font-bold text-sm text-gray-800">{person.Name || person.name || person['ឈ្មោះ']}</div>
+                                                <div className="text-xs text-gray-500">ID: {person.ID || person.id || person['អត្តលេខ']}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {selectedPerson && (
+                            <div className="bg-purple-50 border border-purple-100 rounded-lg p-4 mb-4 flex gap-4 items-start animate-fadeIn">
+                                <div className="w-16 h-16 rounded-full bg-gray-200 overflow-hidden shadow-sm shrink-0 border-2 border-white">
+                                    {(selectedPerson.Photo || selectedPerson.photo || selectedPerson['រូបថត']) ? <img src={selectedPerson.Photo || selectedPerson.photo || selectedPerson['រូបថត']} className="w-full h-full object-cover"/> : <User className="w-full h-full p-3 text-gray-400"/>}
+                                </div>
+                                <div className="flex-1 space-y-1">
+                                    <h4 className="font-bold text-purple-900 text-lg">{selectedPerson.Name || selectedPerson.name || selectedPerson['ឈ្មោះ']}</h4>
+                                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-600">
+                                        <div className="flex items-center gap-1"><CreditCard size={12}/> ID: <b>{selectedPerson.ID || selectedPerson.id || selectedPerson['អត្តលេខ']}</b></div>
+                                        <div className="flex items-center gap-1"><Briefcase size={12}/> ថ្នាក់: <b>{selectedPerson.Rank || selectedPerson.rank || selectedPerson['ថ្នាក់'] || '-'}</b></div>
+                                        <div className="flex items-center gap-1"><Users size={12}/> ក្រុម: <b>{selectedPerson.Group || selectedPerson.group || selectedPerson['ក្រុម'] || '-'}</b></div>
+                                        <div className="flex items-center gap-1"><LayoutDashboard size={12}/> ផ្នែក: <b>{selectedPerson.Section || selectedPerson.section || selectedPerson['ផ្នែកការងារ'] || '-'}</b></div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <Select label="ឈ្មោះសម្ភារៈ" required value={formData.itemId} onChange={e => setFormData({...formData, itemId: e.target.value})} options={items.map(i => ({ label: `${i.name} (សល់: ${i.quantity})`, value: i.id }))} />
+                        <Input label="ចំនួនស្នើសុំ" type="number" required value={formData.quantity} onChange={e => setFormData({...formData, quantity: e.target.value})} />
+                        <Input label="មូលហេតុ" required value={formData.reason} onChange={e => setFormData({...formData, reason: e.target.value})} />
+                        <Button type="submit" className="w-full mt-4 bg-purple-600 hover:bg-purple-700">បញ្ជូនសំណើ</Button>
+                        </form>
+                    )}
+                    </div>
+                </div>
+                );
+            };
+
+            // Main Render
+            if (loading) return <div className="min-h-screen flex items-center justify-center text-blue-600 font-bold animate-pulse">កំពុងតភ្ជាប់ទៅ Realtime DB...</div>;
+
+            return (
+                <div className="pb-16 max-w-md mx-auto">
+                    {/* Top Header */}
+                    <div className="bg-white px-4 py-4 shadow-sm flex items-center justify-between sticky top-0 z-10 no-print">
+                        <div className="flex items-center gap-2 text-blue-700 font-bold text-lg">
+                            <Computer size={24} />
+                            <span>IT Inventory</span>
+                        </div>
+                        <div className={`text-xs px-2 py-1 rounded font-bold flex items-center gap-1 ${authStatus === 'public' ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}`}>
+                            {authStatus === 'public' ? (
+                                <><UserX size={12}/> PUBLIC MODE</>
+                            ) : (
+                                <><UserCheck size={12}/> AUTH MODE</>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Notification Toast */}
+                    {notification && (
+                        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-[70] w-11/12 max-w-sm animate-fadeIn no-print">
+                            <div className={`shadow-lg rounded-lg p-3 text-center text-white font-medium ${notification.type === 'error' ? 'bg-red-500' : 'bg-green-500'}`}>
+                                {notification.msg}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Confirmation Modal Render */}
+                    <ConfirmationModal 
+                        isOpen={confirmModal.isOpen}
+                        title={confirmModal.title}
+                        message={confirmModal.message}
+                        onConfirm={confirmModal.onConfirm}
+                        onCancel={closeConfirmModal}
+                        type={confirmModal.type}
+                    />
+
+                    {/* Content */}
+                    <main className="p-4">
+                        {activeTab === 'dashboard' && <DashboardView />}
+                        {activeTab === 'inventory' && <InventoryView />}
+                        {activeTab === 'operations' && <OperationsView />}
+                        {activeTab === 'history' && <HistoryView />}
+                        {activeTab === 'settings' && <SettingsView />}
+                        {activeTab === 'total_data' && <TotalDataView />}
+                    </main>
+
+                    {/* Bottom Navigation */}
+                    <div className="fixed bottom-0 w-full bg-white border-t border-gray-200 shadow-lg flex justify-around py-2 z-40 max-w-md left-1/2 transform -translate-x-1/2 no-print">
+                        <button onClick={() => setActiveTab('dashboard')} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${activeTab === 'dashboard' ? 'text-blue-600 bg-blue-50' : 'text-gray-400'}`} title="ផ្ទាំងគ្រប់គ្រង">
+                            <LayoutDashboard size={24} />
+                        </button>
+                        <button onClick={() => setActiveTab('operations')} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${activeTab === 'operations' ? 'text-blue-600 bg-blue-50' : 'text-gray-400'}`} title="ប្រតិបត្តិការ">
+                            <Edit size={24} />
+                        </button>
+                        <button onClick={() => setActiveTab('inventory')} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${activeTab === 'inventory' ? 'text-blue-600 bg-blue-50' : 'text-gray-400'}`} title="ស្តុក">
+                            <PackagePlus size={24} />
+                        </button>
+                        <button onClick={() => setActiveTab('total_data')} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${activeTab === 'total_data' ? 'text-blue-600 bg-blue-50' : 'text-gray-400'}`} title="ទិន្នន័យសរុប">
+                            <List size={24} />
+                        </button>
+                        <button onClick={() => setActiveTab('history')} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${activeTab === 'history' ? 'text-blue-600 bg-blue-50' : 'text-gray-400'}`} title="ប្រវត្តិ">
+                            <History size={24} />
+                        </button>
+                        <button onClick={() => setActiveTab('settings')} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${activeTab === 'settings' ? 'text-blue-600 bg-blue-50' : 'text-gray-400'}`} title="ការកំណត់">
+                            <Settings size={24} />
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        // Render the App
+        const root = createRoot(document.getElementById('root'));
+        root.render(<ComputerInventoryApp />);
+    </script>
+</body>
+</html>
