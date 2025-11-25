@@ -1186,30 +1186,172 @@
                     } catch (error) { console.error(error); }
                 };
 
+            // --- UPDATED PDF GENERATION (Professional & Aggregated) ---
                 const downloadPDF = () => {
                     if (groupedHistory.length === 0) return;
                     setIsGeneratingPDF(true);
                     showNotification("កំពុងបង្កើត PDF...", "info");
-                    const vouchersHtml = groupedHistory.map((group, index) => {
+
+                    // 1. Sort Data for PDF (Sort by Requester Name -> Then by Date)
+                    const pdfData = [...groupedHistory].sort((a, b) => {
+                        const nameA = a.requester || 'zzz'; // Put No Name last
+                        const nameB = b.requester || 'zzz';
+                        // Compare Names
+                        const nameComparison = nameA.localeCompare(nameB);
+                        // If names are same, sort by Date (Newest first)
+                        if (nameComparison !== 0) return nameComparison;
+                        return new Date(b.date) - new Date(a.date);
+                    });
+
+                    // 2. Calculate Grand Totals (Summary)
+                    const summaryMap = {};
+                    pdfData.forEach(group => {
+                        group.items.forEach(item => {
+                            const key = item.itemName; // Group by Item Name
+                            if (!summaryMap[key]) {
+                                summaryMap[key] = { 
+                                    name: item.itemName, 
+                                    category: item.category, 
+                                    totalQty: 0 
+                                };
+                            }
+                            summaryMap[key].totalQty += parseInt(item.quantity);
+                        });
+                    });
+                    // Convert to array for rendering
+                    const summaryList = Object.values(summaryMap).sort((a, b) => a.name.localeCompare(b.name));
+
+                    // 3. HTML Template Construction
+                    // Part A: Transaction Rows
+                    const transactionHtml = pdfData.map((group, index) => {
                         const itemRows = group.items.map((item, idx) => `
-                        <tr style="border-bottom: 1px solid #eee;">
-                            <td style="padding: 8px; text-align: center;">${idx + 1}</td>
-                            <td style="padding: 8px;">${item.itemName} <span style="font-size: 10px; color: #666;">(${item.category})</span></td>
-                            <td style="padding: 8px; text-align: center; font-weight: bold;">${item.quantity}</td>
-                        </tr>`).join('');
+                            <tr style="border-bottom: 1px solid #e5e7eb;">
+                                <td style="padding: 8px 12px; text-align: center; color: #6b7280;">${idx + 1}</td>
+                                <td style="padding: 8px 12px;">
+                                    <div style="font-weight: 600; color: #374151;">${item.itemName}</div>
+                                    <div style="font-size: 10px; color: #9ca3af;">${item.category}</div>
+                                </td>
+                                <td style="padding: 8px 12px; text-align: center; font-weight: bold; color: #1f2937;">${item.quantity}</td>
+                            </tr>
+                        `).join('');
+
                         return `
-                        <div style="page-break-inside: avoid; margin-bottom: 20px; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
-                            <div style="background-color: #f8fafc; padding: 15px; border-bottom: 1px solid #ddd;">
-                                <table style="width: 100%;">
-                                    <tr><td><div style="font-weight: bold; color: #1e40af;">ប្រតិបត្តិការ #${index + 1}</div><div style="font-size: 12px; color: #64748b;">${formatDate(group.date)}</div></td><td style="text-align: right;"><div style="font-weight: bold;">${group.requester || 'N/A'}</div><div style="font-size: 12px; color: #64748b;">${group.reason}</div></td></tr>
-                                </table>
+                            <div style="page-break-inside: avoid; margin-bottom: 25px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                                <div style="background-color: #f9fafb; padding: 12px 20px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <div style="font-size: 16px; font-weight: 700; color: #2563eb;">${group.requester || 'N/A'}</div>
+                                        <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">
+                                            ID: ${index + 1} • ${formatDate(group.date)}
+                                        </div>
+                                    </div>
+                                    <div style="text-align: right; max-width: 40%;">
+                                        <div style="font-size: 12px; font-weight: 600; color: #4b5563; background: #e5e7eb; padding: 4px 8px; border-radius: 4px; display: inline-block;">
+                                            ${group.reason}
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div style="padding: 0;">
+                                    <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                                        <thead style="background-color: #ffffff;">
+                                            <tr>
+                                                <th style="padding: 10px; text-align: center; width: 50px; border-bottom: 2px solid #f3f4f6; color: #9ca3af;">#</th>
+                                                <th style="padding: 10px; text-align: left; border-bottom: 2px solid #f3f4f6; color: #6b7280;">សម្ភារៈ</th>
+                                                <th style="padding: 10px; text-align: center; width: 80px; border-bottom: 2px solid #f3f4f6; color: #6b7280;">ចំនួន</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${itemRows}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
-                            <div style="padding: 10px;"><table style="width: 100%; border-collapse: collapse; font-size: 12px;"><thead><tr style="background-color: #f1f5f9; color: #475569;"><th style="padding: 8px; text-align: center; width: 40px;">#</th><th style="padding: 8px; text-align: left;">ឈ្មោះសម្ភារៈ</th><th style="padding: 8px; text-align: center; width: 60px;">ចំនួន</th></tr></thead><tbody>${itemRows}</tbody></table></div>
-                        </div>`;
+                        `;
                     }).join('');
+
+                    // Part B: Summary Section
+                    const summaryHtml = `
+                        <div style="page-break-before: always; margin-top: 30px;">
+                            <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #2563eb; padding-bottom: 10px;">
+                                <h2 style="color: #1e40af; margin: 0; font-size: 18px; text-transform: uppercase;">ការបូកសរុបចុងក្រោយ (Grand Total)</h2>
+                                <p style="font-size: 12px; color: #6b7280; margin-top: 5px;">សរុបចំនួនសម្ភារៈដែលបានប្រតិបត្តិការទាំងអស់</p>
+                            </div>
+                            
+                            <table style="width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #e5e7eb;">
+                                <thead>
+                                    <tr style="background-color: #1e40af; color: white;">
+                                        <th style="padding: 12px; text-align: center; width: 60px;">ល.រ</th>
+                                        <th style="padding: 12px; text-align: left;">ឈ្មោះសម្ភារៈ</th>
+                                        <th style="padding: 12px; text-align: left;">ប្រភេទ</th>
+                                        <th style="padding: 12px; text-align: center;">ចំនួនសរុប</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${summaryList.map((item, idx) => `
+                                        <tr style="border-bottom: 1px solid #e5e7eb; background-color: ${idx % 2 === 0 ? '#ffffff' : '#f9fafb'};">
+                                            <td style="padding: 10px; text-align: center; color: #6b7280;">${idx + 1}</td>
+                                            <td style="padding: 10px; font-weight: 600; color: #374151;">${item.name}</td>
+                                            <td style="padding: 10px; color: #6b7280;">${item.category}</td>
+                                            <td style="padding: 10px; text-align: center;">
+                                                <span style="background-color: #dbeafe; color: #1e40af; padding: 4px 12px; border-radius: 99px; font-weight: bold;">
+                                                    ${item.totalQty}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                            
+                            <div style="margin-top: 20px; text-align: right; font-size: 12px; color: #6b7280;">
+                                <span>សរុបមុខទំនិញទាំងអស់: <b>${summaryList.length} មុខ</b></span>
+                            </div>
+                        </div>
+                    `;
+
+                    // Part C: Full Document Layout
                     const element = document.createElement('div');
-                    element.innerHTML = `<div style="font-family: 'Kantumruy Pro', sans-serif; padding: 20px; background: white; width: 100%;"><div style="text-align: center; margin-bottom: 20px;"><h2 style="color: #1d4ed8; margin: 0;">របាយការណ៍ប្រវត្តិ</h2><p style="font-size: 12px; color: #666;">Generated: ${new Date().toLocaleString('km-KH')}</p></div>${vouchersHtml}</div>`;
-                    const opt = { margin: 10, filename: `Inventory_History.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
+                    element.innerHTML = `
+                        <div style="font-family: 'Kantumruy Pro', sans-serif; padding: 30px; background: white; width: 100%; color: #1f2937;">
+                            
+                            <div style="text-align: center; margin-bottom: 40px;">
+                                <h1 style="color: #1e40af; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: 1px;">របាយការណ៍ស្តុក (IT Inventory)</h1>
+                                <div style="font-size: 14px; color: #4b5563; margin-top: 8px; font-weight: 500;">
+                                    ប្រវត្តិប្រតិបត្តិការ: ${historyTab === 'direct' ? 'ដកចេញទូទៅ (Direct Out)' : 'សំណើដក (Requests)'}
+                                </div>
+                                <div style="font-size: 10px; color: #9ca3af; margin-top: 5px;">
+                                    កាលបរិច្ឆេទបង្កើត: ${new Date().toLocaleString('km-KH')}
+                                </div>
+                            </div>
+
+                            <div>
+                                ${transactionHtml}
+                            </div>
+
+                            ${summaryHtml}
+
+                            <div style="margin-top: 60px; display: flex; justify-content: space-between; page-break-inside: avoid;">
+                                <div style="text-align: center; width: 200px;">
+                                    <div style="font-size: 11px; color: #6b7280; margin-bottom: 60px;">រៀបចំដោយ</div>
+                                    <div style="border-top: 1px solid #d1d5db; padding-top: 8px; font-size: 12px; font-weight: bold;">ហត្ថលេខា & ឈ្មោះ</div>
+                                </div>
+                                <div style="text-align: center; width: 200px;">
+                                    <div style="font-size: 11px; color: #6b7280; margin-bottom: 60px;">ត្រួតពិនិត្យដោយ</div>
+                                    <div style="border-top: 1px solid #d1d5db; padding-top: 8px; font-size: 12px; font-weight: bold;">ហត្ថលេខា & ឈ្មោះ</div>
+                                </div>
+                            </div>
+
+                        </div>
+                    `;
+
+                    const opt = {
+                        margin: [10, 10, 10, 10], // Top, Left, Bottom, Right
+                        filename: `Inventory_Report_${new Date().toISOString().slice(0, 10)}.pdf`,
+                        image: { type: 'jpeg', quality: 0.98 },
+                        html2canvas: { scale: 2, useCORS: true, logging: false },
+                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+                    };
+
                     html2pdf().set(opt).from(element).save().then(() => setIsGeneratingPDF(false));
                 };
 
