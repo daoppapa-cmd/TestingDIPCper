@@ -1147,10 +1147,11 @@
 
                 // --- UPDATED PDF GENERATION (2 Columns & Summary) ---
                 // --- FIXED PDF GENERATION (SOLVED BLANK PAGE ISSUE) ---
+                // --- UPDATED PDF GENERATION (FIXED BLANK PAGE & 2 COLUMNS) ---
                 const downloadPDF = async () => {
                     if (groupedHistory.length === 0) return;
                     setIsGeneratingPDF(true);
-                    showNotification("កំពុងរៀបចំ PDF... (សូមរង់ចាំបន្តិច)", "info");
+                    showNotification("កំពុងរៀបចំ PDF... (សូមរង់ចាំ)", "info");
 
                     // 1. Sort Data
                     const pdfData = [...groupedHistory].sort((a, b) => {
@@ -1177,65 +1178,86 @@
                         if (items.length === 0) return '';
                         const rows = items.map((item, idx) => `
                             <tr style="border-bottom: 1px solid #f0f0f0;">
-                                <td style="padding: 5px; text-align: center; color: #6b7280; font-size: 10px; width: 25px;">${startIndex + idx + 1}</td>
-                                <td style="padding: 5px;">
+                                <td style="padding: 6px; text-align: center; color: #6b7280; font-size: 10px; width: 25px;">${startIndex + idx + 1}</td>
+                                <td style="padding: 6px;">
                                     <div style="font-weight: bold; color: #374151; font-size: 11px;">${item.itemName}</div>
                                     <div style="font-size: 9px; color: #9ca3af;">${item.category}</div>
                                 </td>
-                                <td style="padding: 5px; text-align: center; font-weight: bold; color: #1f2937; font-size: 11px; width: 35px;">${item.quantity}</td>
+                                <td style="padding: 6px; text-align: center; font-weight: bold; color: #1f2937; font-size: 11px; width: 35px;">${item.quantity}</td>
                             </tr>
                         `).join('');
                         return `<table style="width: 100%; border-collapse: collapse; font-size: 11px;"><thead style="background-color: #f9fafb;"><tr><th style="padding: 5px; text-align: center; border-bottom: 1px solid #e5e7eb; color: #9ca3af;">#</th><th style="padding: 5px; text-align: left; border-bottom: 1px solid #e5e7eb; color: #6b7280;">សម្ភារៈ</th><th style="padding: 5px; text-align: center; border-bottom: 1px solid #e5e7eb; color: #6b7280;">ចំនួន</th></tr></thead><tbody>${rows}</tbody></table>`;
                     };
 
+                    // Generate Cards HTML
                     const transactionHtml = pdfData.map((group, index) => {
                         const mid = Math.ceil(group.items.length / 2);
                         const leftItems = group.items.slice(0, mid);
                         const rightItems = group.items.slice(mid);
                         return `
-                            <div style="page-break-inside: avoid; margin-bottom: 15px; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden;">
-                                <div style="background-color: #f3f4f6; padding: 8px 15px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center;">
-                                    <div><div style="font-size: 13px; font-weight: 700; color: #2563eb; font-family: 'Kantumruy Pro', sans-serif;">${group.requester || 'N/A'}</div><div style="font-size: 9px; color: #6b7280;">ID: ${index + 1} • ${formatDate(group.date)}</div></div>
-                                    <div style="font-size: 10px; font-weight: 600; color: #4b5563; background: #e5e7eb; padding: 3px 8px; border-radius: 4px;">${group.reason}</div>
+                            <div style="page-break-inside: avoid; margin-bottom: 20px; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; background-color: #ffffff;">
+                                <div style="background-color: #f3f4f6; padding: 10px 15px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center;">
+                                    <div><div style="font-size: 14px; font-weight: 700; color: #2563eb; font-family: 'Kantumruy Pro', sans-serif;">${group.requester || 'N/A'}</div><div style="font-size: 10px; color: #6b7280;">ID: ${index + 1} • ${formatDate(group.date)}</div></div>
+                                    <div style="font-size: 11px; font-weight: 600; color: #4b5563; background: #e5e7eb; padding: 3px 8px; border-radius: 4px;">${group.reason}</div>
                                 </div>
-                                <div style="padding: 8px;"><table style="width: 100%; border: none; border-collapse: collapse;"><tr style="vertical-align: top;"><td style="width: 49%; padding-right: 5px; border: none;">${createSubTable(leftItems, 0)}</td><td style="width: 2%; border: none;"></td><td style="width: 49%; padding-left: 5px; border: none;">${createSubTable(rightItems, mid)}</td></tr></table></div>
+                                <div style="padding: 10px;"><table style="width: 100%; border: none; border-collapse: collapse;"><tr style="vertical-align: top;"><td style="width: 49%; padding-right: 5px; border: none;">${createSubTable(leftItems, 0)}</td><td style="width: 2%; border: none;"></td><td style="width: 49%; padding-left: 5px; border: none;">${createSubTable(rightItems, mid)}</td></tr></table></div>
                             </div>`;
                     }).join('');
 
+                    // Generate Summary HTML
                     const summaryHtml = `
-                        <div style="page-break-before: always; margin-top: 20px;">
-                            <div style="text-align: center; margin-bottom: 15px; border-bottom: 2px solid #2563eb; padding-bottom: 8px;"><h2 style="color: #1e40af; margin: 0; font-size: 16px; font-family: 'Kantumruy Pro', sans-serif;">ការបូកសរុបចុងក្រោយ (Grand Total)</h2></div>
+                        <div style="page-break-before: always; margin-top: 30px;">
+                            <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #2563eb; padding-bottom: 10px;"><h2 style="color: #1e40af; margin: 0; font-size: 16px; font-family: 'Kantumruy Pro', sans-serif;">ការបូកសរុបចុងក្រោយ (Grand Total)</h2></div>
                             <table style="width: 100%; border-collapse: collapse; font-size: 11px; border: 1px solid #e5e7eb;"><thead><tr style="background-color: #1e40af; color: white;"><th style="padding: 8px; text-align: center; width: 50px;">#</th><th style="padding: 8px; text-align: left;">ឈ្មោះសម្ភារៈ</th><th style="padding: 8px; text-align: left;">ប្រភេទ</th><th style="padding: 8px; text-align: center;">សរុប</th></tr></thead><tbody>${summaryList.map((item, idx) => `<tr style="border-bottom: 1px solid #e5e7eb; background-color: ${idx % 2 === 0 ? '#ffffff' : '#f9fafb'};"><td style="padding: 8px; text-align: center;">${idx + 1}</td><td style="padding: 8px; font-weight: 600;">${item.name}</td><td style="padding: 8px;">${item.category}</td><td style="padding: 8px; text-align: center;"><span style="background-color: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 10px; font-weight: bold;">${item.totalQty}</span></td></tr>`).join('')}</tbody></table>
                         </div>`;
 
-                    // --- FIXING BLANK PAGE ISSUE ---
+                    // --- CRITICAL FIX FOR BLANK PDF ---
                     const container = document.createElement('div');
-                    // IMPORTANT: Don't use display:none. Use fixed position + low z-index to "hide" it behind content but keep it renderable.
-                    container.style.position = 'fixed'; 
-                    container.style.top = '0'; 
-                    container.style.left = '0'; 
-                    container.style.zIndex = '-9999'; // Put behind everything
-                    container.style.width = '794px'; // A4 Width
-                    container.style.backgroundColor = 'white';
+                    
+                    // Use ABSOLUTE positioning, move it FAR LEFT, but keep Z-INDEX HIGH
+                    // This ensures it's "visible" to the renderer but off the user's screen.
+                    container.style.position = 'absolute';
+                    container.style.top = '0';
+                    container.style.left = '-5000px'; // Move off-screen
+                    container.style.width = '800px'; // Fixed width for A4
+                    container.style.zIndex = '9999'; // Ensure it's on top of other layers
+                    container.style.backgroundColor = '#ffffff'; // Explicit white background
                     
                     container.innerHTML = `
                         <div style="font-family: 'Kantumruy Pro', sans-serif; padding: 25px; color: #1f2937; background: white;">
-                            <div style="text-align: center; margin-bottom: 25px;"><h1 style="color: #1e40af; margin: 0; font-size: 20px; font-weight: 700; font-family: 'Kantumruy Pro', sans-serif;">របាយការណ៍ស្តុក (IT Inventory)</h1><div style="font-size: 11px; color: #4b5563; margin-top: 5px;">${historyTab === 'direct' ? 'ដកចេញទូទៅ (Direct Out)' : 'សំណើដក (Requests)'}</div><div style="font-size: 9px; color: #9ca3af;">Generated: ${new Date().toLocaleString('km-KH')}</div></div>
+                            <div style="text-align: center; margin-bottom: 30px;"><h1 style="color: #1e40af; margin: 0; font-size: 20px; font-weight: 700; font-family: 'Kantumruy Pro', sans-serif;">របាយការណ៍ស្តុក (IT Inventory)</h1><div style="font-size: 11px; color: #4b5563; margin-top: 5px;">${historyTab === 'direct' ? 'ដកចេញទូទៅ (Direct Out)' : 'សំណើដក (Requests)'}</div><div style="font-size: 9px; color: #9ca3af;">Generated: ${new Date().toLocaleString('km-KH')}</div></div>
                             ${transactionHtml}
                             ${summaryHtml}
-                            <div style="margin-top: 40px; display: flex; justify-content: space-between; page-break-inside: avoid;"><div style="text-align: center; width: 200px;"><div style="font-size: 11px; margin-bottom: 40px;">រៀបចំដោយ</div><div style="border-top: 1px solid #ccc; padding-top: 5px; font-size: 11px; font-weight: bold;">ហត្ថលេខា & ឈ្មោះ</div></div><div style="text-align: center; width: 200px;"><div style="font-size: 11px; margin-bottom: 40px;">ត្រួតពិនិត្យដោយ</div><div style="border-top: 1px solid #ccc; padding-top: 5px; font-size: 11px; font-weight: bold;">ហត្ថលេខា & ឈ្មោះ</div></div></div>
+                            <div style="margin-top: 50px; display: flex; justify-content: space-between; page-break-inside: avoid;"><div style="text-align: center; width: 200px;"><div style="font-size: 11px; margin-bottom: 50px;">រៀបចំដោយ</div><div style="border-top: 1px solid #ccc; padding-top: 5px; font-size: 11px; font-weight: bold;">ហត្ថលេខា & ឈ្មោះ</div></div><div style="text-align: center; width: 200px;"><div style="font-size: 11px; margin-bottom: 50px;">ត្រួតពិនិត្យដោយ</div><div style="border-top: 1px solid #ccc; padding-top: 5px; font-size: 11px; font-weight: bold;">ហត្ថលេខា & ឈ្មោះ</div></div></div>
                         </div>`;
                     
                     document.body.appendChild(container);
 
-                    // Wait 500ms to ensure DOM is rendered and Fonts are loaded
-                    await new Promise(resolve => setTimeout(resolve, 500));
+                    // Longer wait time to ensure Fonts & DOM are ready
+                    await new Promise(resolve => setTimeout(resolve, 1000));
 
-                    const opt = { margin: [10, 10, 10, 10], filename: `Inventory_Report.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true, logging: false }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
+                    const opt = {
+                        margin: [10, 10, 10, 10],
+                        filename: `Inventory_Report_${new Date().toISOString().slice(0, 10)}.pdf`,
+                        image: { type: 'jpeg', quality: 0.98 },
+                        html2canvas: { 
+                            scale: 2, 
+                            useCORS: true, 
+                            logging: false,
+                            windowWidth: 1600 // Trick renderer into thinking screen is wide enough
+                        },
+                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                    };
                     
-                    try { await html2pdf().set(opt).from(container).save(); } 
-                    catch (err) { console.error(err); alert("មានបញ្ហាក្នុងការបង្កើត PDF"); } 
-                    finally { document.body.removeChild(container); setIsGeneratingPDF(false); }
+                    try { 
+                        await html2pdf().set(opt).from(container).save(); 
+                    } catch (err) { 
+                        console.error(err); 
+                        alert("មានបញ្ហាក្នុងការបង្កើត PDF"); 
+                    } finally { 
+                        document.body.removeChild(container); 
+                        setIsGeneratingPDF(false); 
+                    }
                 };
 
                 return (
